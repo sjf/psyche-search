@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PsycheSearch Daemon</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>PsycheSearch Daemon</h1>
+      <div class="pill">Share status: $share_status</div>
+    </div>
+    <div class="header-actions">
+      <a class="link" href="/search">Search</a>
+      <a class="link" href="/shares">Shared Files</a>
+      <a class="link" href="/downloads">Downloads</a>
+      <a class="link" href="/users">Browse User</a>
+    </div>
+  </div>
+  <section class="status">
+    <div class="card">
+      <div class="label">Account</div>
+      <div>$username</div>
+    </div>
+    <div class="card">
+      <div class="label">Connection</div>
+      <div>$status</div>
+    </div>
+    <div class="card">
+      <div class="label">Shared files</div>
+      <div>$share_files</div>
+    </div>
+    <div class="card">
+      <div class="label">Shared folders</div>
+      <div>$share_folders</div>
+    </div>
+  </section>
+  <h2>Transfer Stats</h2>
+  <section class="grid">
+    <div class="card">
+      <div class="label">Downloads started</div>
+      <div>$downloads_started</div>
+    </div>
+    <div class="card">
+      <div class="label">Downloads completed</div>
+      <div>$downloads_completed</div>
+    </div>
+    <div class="card">
+      <div class="label">Downloaded</div>
+      <div>$downloaded_size</div>
+    </div>
+    <div class="card">
+      <div class="label">Uploads started</div>
+      <div>$uploads_started</div>
+    </div>
+    <div class="card">
+      <div class="label">Uploads completed</div>
+      <div>$uploads_completed</div>
+    </div>
+    <div class="card">
+      <div class="label">Uploaded</div>
+      <div>$uploaded_size</div>
+    </div>
+    <div class="card">
+      <div class="label">Stats since</div>
+      <div>$since_text</div>
+    </div>
+  </section>
+  <h2>Shared Folders</h2>
+  $share_table
+  <h2>Chat (Last 50)</h2>
+  <table class="chat-table">
+    <thead>
+      <tr>
+        <th class="chat-time">Time</th>
+        <th class="chat-type">Type</th>
+        <th class="chat-target">Target</th>
+        <th class="chat-message">Message</th>
+      </tr>
+    </thead>
+    <tbody>
+      $chat_rows
+    </tbody>
+  </table>
+</body>
+</html>

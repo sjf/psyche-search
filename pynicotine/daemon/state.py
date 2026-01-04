@@ -1,0 +1,343 @@
+# SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import threading
+import time
+
+from collections import deque
+
+from pynicotine.config import config
+from pynicotine.core import core
+from pynicotine.events import events
+from pynicotine.slskmessages import UserStatus
+from pynicotine.daemon.trees import build_search_tree
+from pynicotine.daemon.trees import build_user_tree
+
+
+class DaemonState:
+    __slots__ = ("_lock", "share_files", "share_folders", "share_status", "chat_lines",
+                 "searches", "search_results", "max_search_results", "pending_requests",
+                 "_pending_request_id", "_user_browse_events")
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.share_files = None
+        self.share_folders = None
+        self.share_status = "scanning"
+        self.chat_lines = deque(maxlen=50)
+        self.searches = {}
+        self.search_results = {}
+        self.max_search_results = 500
+        self.pending_requests = {}
+        self._pending_request_id = 0
+        self._user_browse_events = {}
+
+    def set_shares_scanning(self):
+        with self._lock:
+            self.share_status = "scanning"
+
+    def set_share_counts(self, share_files, share_folders):
+        with self._lock:
+            self.share_files = share_files
+            self.share_folders = share_folders
+            self.share_status = "ready"
+
+    def record_chat(self, entry):
+        with self._lock:
+            self.chat_lines.appendleft(entry)
+
+    def request_search(self, term):
+        with self._lock:
+            self._pending_request_id += 1
+            request_id = self._pending_request_id
+            pending = {"event": threading.Event(), "token": None}
+            self.pending_requests[request_id] = pending
+
+        events.invoke_main_thread(self._start_search_main_thread, request_id, term)
+        pending["event"].wait(timeout=3)
+
+        with self._lock:
+            token = pending["token"]
+            self.pending_requests.pop(request_id, None)
+
+        return token
+
+    def _start_search_main_thread(self, request_id, term):
+        core.search.do_search(term, "global")
+        token = core.search.token
+
+        with self._lock:
+            pending = self.pending_requests.get(request_id)
+            if pending is None:
+                return
+
+            pending["token"] = token
+            pending["event"].set()
+
+    def add_search(self, token, term):
+        with self._lock:
+            self.searches[token] = {
+                "term": term,
+                "started_at": int(time.time()),
+                "results": 0
+            }
+            self.search_results.setdefault(token, [])
+
+    def remove_search(self, token):
+        with self._lock:
+            self.searches.pop(token, None)
+            self.search_results.pop(token, None)
+
+    def add_search_results(self, token, username, results, free_slots, speed, inqueue):
+        if not results:
+            return
+
+        with self._lock:
+            if token not in self.searches:
+                return
+
+            items = self.search_results.setdefault(token, [])
+            remaining = self.max_search_results - len(items)
+            if remaining <= 0:
+                return
+
+            for fileinfo in results[:remaining]:
+                _code, name, size, _ext, _attrs = fileinfo
+                items.append({
+                    "user": username,
+                    "path": name,
+                    "size": size,
+                    "free_slots": free_slots,
+                    "speed": speed,
+                    "inqueue": inqueue
+                })
+
+            self.searches[token]["results"] = len(items)
+
+    def get_search_snapshot(self, token):
+        with self._lock:
+            search = self.searches.get(token)
+            results = list(self.search_results.get(token, []))
+
+        return search, results
+
+    def request_user_tree(self, username, local=False):
+        events.invoke_main_thread(self._ensure_user_browse_main_thread, username, local)
+
+        event = self._get_user_browse_event(username, local)
+        event.wait(timeout=30)
+
+        with self._lock:
+            self._pending_request_id += 1
+            request_id = self._pending_request_id
+            pending = {"event": threading.Event(), "tree": None, "status": "loading"}
+            self.pending_requests[request_id] = pending
+
+        events.invoke_main_thread(self._get_user_tree_main_thread, request_id, username, local)
+        pending["event"].wait(timeout=3)
+
+        with self._lock:
+            result = self.pending_requests.pop(request_id, None)
+
+        if not result:
+            return {"status": "loading"}
+
+        return {"status": result["status"], "tree": result.get("tree")}
+
+    def _ensure_user_browse_main_thread(self, username, local):
+        local_username = core.users.login_username or config.sections["server"]["login"]
+        if local:
+            if not local_username:
+                return
+
+            if local_username not in core.userbrowse.users:
+                core.userbrowse.browse_local_shares(new_request=True, switch_page=False)
+            else:
+                core.userbrowse.browse_local_shares(new_request=False, switch_page=False)
+            return
+
+        if not username:
+            return
+
+        if username not in core.userbrowse.users:
+            core.userbrowse.browse_user(username, new_request=True, switch_page=False)
+        else:
+            core.userbrowse.browse_user(username, new_request=False, switch_page=False)
+
+    def _get_user_tree_main_thread(self, request_id, username, local):
+        local_username = core.users.login_username or config.sections["server"]["login"]
+        if local:
+            if not local_username:
+                status = "error"
+                tree = None
+            else:
+                tree = build_user_tree(local_username, hide_at_root=False)
+                status = "ready" if tree else "loading"
+        else:
+            if not username:
+                status = "error"
+                tree = None
+            else:
+                tree = build_user_tree(username, hide_at_root=True)
+                status = "ready" if tree else "loading"
+
+        with self._lock:
+            pending = self.pending_requests.get(request_id)
+            if pending is None:
+                return
+
+            pending["tree"] = tree
+            pending["status"] = status
+            pending["event"].set()
+
+    def build_search_tree(self, token):
+        with self._lock:
+            results = list(self.search_results.get(token, []))
+
+        return build_search_tree(results)
+
+    def request_download(self, username, virtual_path, size=0):
+        events.invoke_main_thread(self._download_main_thread, username, virtual_path, size)
+
+    def _download_main_thread(self, username, virtual_path, size):
+        if not username or not virtual_path:
+            return
+        core.downloads.enqueue_download(username, virtual_path, size=size)
+
+    def request_downloads_snapshot(self):
+        with self._lock:
+            self._pending_request_id += 1
+            request_id = self._pending_request_id
+            pending = {"event": threading.Event(), "downloads": []}
+            self.pending_requests[request_id] = pending
+
+        events.invoke_main_thread(self._downloads_snapshot_main_thread, request_id)
+        pending["event"].wait(timeout=2)
+
+        with self._lock:
+            result = self.pending_requests.pop(request_id, None)
+
+        if not result:
+            return []
+
+        return result.get("downloads", [])
+
+    def _downloads_snapshot_main_thread(self, request_id):
+        downloads = []
+        for transfer in core.downloads.transfers.values():
+            downloads.append({
+                "user": transfer.username,
+                "path": transfer.virtual_path,
+                "status": transfer.status,
+                "size": transfer.size,
+                "offset": transfer.current_byte_offset or 0,
+                "folder": transfer.folder_path or ""
+            })
+
+        with self._lock:
+            pending = self.pending_requests.get(request_id)
+            if pending is None:
+                return
+
+            pending["downloads"] = downloads
+            pending["event"].set()
+
+    def _get_user_browse_event(self, username, local):
+        local_username = core.users.login_username or config.sections["server"]["login"]
+        key = local_username if local else username
+        with self._lock:
+            event = self._user_browse_events.get(key)
+            if event is None:
+                event = self._user_browse_events[key] = threading.Event()
+            event.clear()
+        return event
+
+    def notify_user_browse(self, username):
+        with self._lock:
+            event = self._user_browse_events.get(username)
+        if event:
+            event.set()
+
+    def snapshot(self):
+        with self._lock:
+            share_files = self.share_files
+            share_folders = self.share_folders
+            share_status = self.share_status
+            chat_lines = list(self.chat_lines)
+            searches = {
+                token: data.copy() for token, data in self.searches.items()
+            }
+
+        if share_files is None or share_folders is None:
+            share_files, share_folders = compute_share_counts()
+            if share_files is not None:
+                share_status = "ready"
+
+        username = ""
+        if core.users is not None and core.users.login_username:
+            username = core.users.login_username
+        elif config.sections["server"]["login"]:
+            username = config.sections["server"]["login"]
+
+        stats = config.sections.get("statistics", {})
+        since_timestamp = stats.get("since_timestamp", 0)
+        since_text = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(since_timestamp)) if since_timestamp else ""
+
+        return {
+            "status": self._get_status_label(),
+            "username": username,
+            "share_files": share_files,
+            "share_folders": share_folders,
+            "share_status": share_status,
+            "stats": {
+                "since": since_text,
+                "started_downloads": stats.get("started_downloads", 0),
+                "completed_downloads": stats.get("completed_downloads", 0),
+                "downloaded_size": stats.get("downloaded_size", 0),
+                "started_uploads": stats.get("started_uploads", 0),
+                "completed_uploads": stats.get("completed_uploads", 0),
+                "uploaded_size": stats.get("uploaded_size", 0)
+            },
+            "shares": list(config.sections["transfers"].get("shared", [])),
+            "chat": chat_lines,
+            "searches": searches
+        }
+
+    def _get_status_label(self):
+        if core.users is None:
+            return "offline"
+
+        status = core.users.login_status
+
+        if status == UserStatus.ONLINE:
+            return "online"
+
+        if status == UserStatus.AWAY:
+            return "away"
+
+        if status == UserStatus.OFFLINE:
+            return "offline"
+
+        return "unknown"
+
+
+def compute_share_counts():
+    if core.shares is None:
+        return None, None
+
+    share_dbs = core.shares.share_dbs
+    if not share_dbs:
+        return None, None
+
+    share_files = len(share_dbs.get("public_files", {}))
+    share_folders = len(share_dbs.get("public_streams", {}))
+
+    if config.sections["transfers"]["reveal_buddy_shares"]:
+        share_files += len(share_dbs.get("buddy_files", {}))
+        share_folders += len(share_dbs.get("buddy_streams", {}))
+
+    if config.sections["transfers"]["reveal_trusted_shares"]:
+        share_files += len(share_dbs.get("trusted_files", {}))
+        share_folders += len(share_dbs.get("trusted_streams", {}))
+
+    return share_files, share_folders
