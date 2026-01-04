@@ -162,6 +162,7 @@ EVENT_NAMES = {
     "folder-contents-response",
     "folder-contents-timeout",
     "folder-download-finished",
+    "download-finished",
     "peer-connection-closed",
     "peer-connection-error",
     "place-in-queue-request",
@@ -176,6 +177,7 @@ EVENT_NAMES = {
     "upload-denied",
     "upload-failed",
     "upload-file-error",
+    "upload-finished",
     "uploads-shutdown-request",
     "uploads-shutdown-cancel",
 

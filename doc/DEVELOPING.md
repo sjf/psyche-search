@@ -17,6 +17,7 @@ alike.
  - [Design](#design)
  - [Performance](#performance)
  - [Debug Logging](#debug-logging)
+ - [Daemon Mode](#daemon-mode)
  - [Soulseek Protocol](#soulseek-protocol)
  - [Continuous Integration Testing](#continuous-integration-testing)
  - [Translations](#translations)
@@ -136,6 +137,23 @@ In order to enable debug logging:
 If you want to log debug messages to file, `Menu -> Preferences -> Logging ->
 Log debug messages to file`. Remember to disable debug logging when you no
 longer need it, since it impacts performance.
+
+
+## Daemon Mode
+
+Daemon mode runs Nicotine+ without GTK and exposes a minimal web status page.
+It is intended for systemd services where all settings live in the config file.
+
+To start the daemon (example):
+
+```sh
+./nicotine --daemon --config /etc/nicotine/config
+```
+
+The web UI listens on `127.0.0.1:7007` by default and shows connection status
+plus shared file/folder counts. Configure `server` login credentials and
+`transfers` shares in the config file; web UI settings live under the
+`[daemon]` section.
 
 
 ## Soulseek Protocol

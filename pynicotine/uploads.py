@@ -383,6 +383,7 @@ class Uploads(Transfers):
                 is_lowercase_path=transfer.is_lowercase_path
             )
             core.pluginhandler.upload_finished_notification(username, virtual_path, real_path)
+            events.emit("upload-finished", username, virtual_path, real_path)
 
             log.add_upload(
                 _("Upload finished: user %(user)s, IP address %(ip)s, file %(file)s"), {

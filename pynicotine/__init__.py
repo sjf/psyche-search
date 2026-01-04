@@ -69,6 +69,10 @@ def check_arguments():
         help=_("start the program in headless mode (no GUI)")
     )
     parser.add_argument(
+        "-d", "--daemon", action="store_true",
+        help=_("start the program in daemon mode with a web UI")
+    )
+    parser.add_argument(
         "-v", "--version", action="version", version=f"{__application_name__} {__version__}",
         help=_("display version and exit")
     )
@@ -95,7 +99,7 @@ def check_arguments():
     core.cli_listen_port = args.port
     core.cli_rescanning = args.rescan
 
-    return args.headless, args.hidden, args.ci_mode, args.isolated, args.rescan, multi_instance
+    return args.headless, args.daemon, args.hidden, args.ci_mode, args.isolated, args.rescan, multi_instance
 
 
 def check_python_version():
@@ -190,15 +194,27 @@ def run():
     set_up_python()
     rename_process(b"nicotine")
 
-    headless, hidden, ci_mode, isolated_mode, rescan, multi_instance = check_arguments()
+    headless, daemon, hidden, ci_mode, isolated_mode, rescan, multi_instance = check_arguments()
     error = check_python_version()
 
     if error:
         print(error)
         return 1
 
+    if daemon:
+        enabled_components = {
+            "error_handler", "signal_handler", "portmapper", "network_thread", "shares", "users",
+            "notifications", "network_filter", "statistics", "port_checker", "update_checker",
+            "search", "downloads", "uploads", "interests", "userbrowse", "userinfo", "buddies",
+            "chatrooms", "privatechat", "pluginhandler"
+        }
+    elif rescan:
+        enabled_components = {"signal_handler", "cli", "shares"}
+    else:
+        enabled_components = None
+
     core.init_components(
-        enabled_components={"signal_handler", "cli", "shares"} if rescan else None,
+        enabled_components=enabled_components,
         isolated_mode=isolated_mode
     )
 
@@ -215,6 +231,10 @@ def run():
 
     if rescan:
         return rescan_shares()
+
+    if daemon:
+        from pynicotine import daemon as application
+        return application.run()
 
     # Initialize GTK-based GUI
     if not headless:

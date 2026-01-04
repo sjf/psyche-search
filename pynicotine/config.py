@@ -432,6 +432,10 @@ class Config:
                 "enable": True,
                 "enabled": []
             },
+            "daemon": {
+                "web_host": "127.0.0.1",
+                "web_port": 7007
+            },
             "statistics": {
                 "since_timestamp": 0,
                 "started_downloads": 0,

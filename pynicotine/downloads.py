@@ -468,6 +468,7 @@ class Downloads(Transfers):
         self._folder_downloaded_actions(username, transfer.folder_path)
 
         core.pluginhandler.download_finished_notification(username, virtual_path, download_file_path)
+        events.emit("download-finished", username, virtual_path, download_file_path)
 
         log.add_download(
             _("Download finished: user %(user)s, file %(file)s"), {
