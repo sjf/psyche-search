@@ -6,29 +6,29 @@
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-  <h1>Search</h1>
-  <div class="panel">
-    <form method="post" action="/search">
-      <div class="row">
-        <input type="text" name="term" placeholder="Search Soulseek network" />
-        <button type="submit">Search</button>
-        <a class="link" href="/">Back</a>
-      </div>
-    </form>
+  $nav
+  <div class="content">
+    <h1>Search</h1>
+    <div class="panel">
+      <form method="post" action="/search">
+        <div class="row">
+          <input type="text" name="term" placeholder="Search Soulseek network" />
+          <button type="submit">Search</button>
+        </div>
+      </form>
+    </div>
+    <h2>Recent Searches</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Term</th>
+          <th>Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        $history_rows
+      </tbody>
+    </table>
   </div>
-  <h2>Recent Searches</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Search</th>
-        <th>Term</th>
-        <th>Results</th>
-        <th>Started</th>
-      </tr>
-    </thead>
-    <tbody>
-      $history_rows
-    </tbody>
-  </table>
 </body>
 </html>

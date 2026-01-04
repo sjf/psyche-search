@@ -11,9 +11,13 @@
 
 body {
   font-family: "Azeret Mono", "Azeret", "DejaVu Sans", Arial, sans-serif;
-  margin: 24px;
+  margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+
+.content {
+  padding: 24px;
 }
 
 h1 {
@@ -27,6 +31,37 @@ h2 {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+  padding: 12px 24px;
+  background: var(--panel);
+  border: none;
+  border-radius: 0;
+}
+
+.nav-brand {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-brand:hover {
+  color: var(--accent);
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .header {
@@ -47,6 +82,12 @@ h2 {
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 6px;
 }
 
 .panel {
@@ -93,9 +134,8 @@ h2 {
 .link {
   color: var(--text);
   background: transparent;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border: none;
+  padding: 0;
   font-size: 12px;
   text-decoration: none;
   display: inline-flex;
@@ -104,8 +144,11 @@ h2 {
 }
 
 .link:hover {
-  border-color: var(--accent);
   color: var(--accent);
+}
+
+.nav .link {
+  font-size: 14px;
 }
 
 table {

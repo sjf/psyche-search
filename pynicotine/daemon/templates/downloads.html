@@ -6,23 +6,25 @@
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-  <div class="row">
-    <h1>Downloads</h1>
-    <a class="link" href="/">Back</a>
+  $nav
+  <div class="content">
+    <div class="row">
+      <h1>Downloads</h1>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Path</th>
+          <th>Size</th>
+          <th>Progress</th>
+          <th>Status</th>
+          <th>Folder</th>
+        </tr>
+      </thead>
+      <tbody id="downloads-body"></tbody>
+    </table>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>User</th>
-        <th>Path</th>
-        <th>Size</th>
-        <th>Progress</th>
-        <th>Status</th>
-        <th>Folder</th>
-      </tr>
-    </thead>
-    <tbody id="downloads-body"></tbody>
-  </table>
   <script src="/assets/downloads.js"></script>
 </body>
 </html>

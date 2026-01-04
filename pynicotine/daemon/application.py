@@ -38,6 +38,7 @@ class Application:
         events.connect("remove-search", self._on_remove_search)
         events.connect("file-search-response", self._on_file_search_response)
         events.connect("shared-file-list-response", self._on_shared_file_list_response)
+        events.connect("watch-user", self._on_watch_user)
         events.connect("quit", self._on_quit)
 
     def run(self):
@@ -173,3 +174,7 @@ class Application:
     def _on_shared_file_list_response(self, msg):
         if msg.username:
             self._state.notify_user_browse(msg.username)
+
+    def _on_watch_user(self, msg):
+        if msg.user and msg.userexists is False:
+            self._state.notify_user_browse_not_found(msg.user)

@@ -132,7 +132,13 @@
       .then(data => {
         const statusEl = document.getElementById("tree-status");
         if (!data || data.status !== "ready") {
-          statusEl.textContent = data && data.status === "loading" ? "Loading..." : "No data available.";
+          if (data && data.status === "not_found") {
+            statusEl.textContent = "User not found.";
+          } else if (data && data.status === "loading") {
+            statusEl.textContent = "Loading...";
+          } else {
+            statusEl.textContent = "No data available.";
+          }
           return;
         }
         statusEl.textContent = "";

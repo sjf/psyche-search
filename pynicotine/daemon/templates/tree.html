@@ -6,15 +6,19 @@
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-  <div class="row">
-    <h1>$title</h1>
-  </div>
-  <div class="row">
-    <a class="link" href="$back_url">Back</a>
-  </div>
-  <div class="panel">
-    <div class="tree-status" id="tree-status">Loading...</div>
-    <div class="tree" id="tree-root"></div>
+  $nav
+  <div class="content">
+    <div class="row">
+      <h1>$title</h1>
+    </div>
+    $subtitle_html
+    <div class="row">
+      <a class="link" href="$back_url">Back</a>
+    </div>
+    <div class="panel">
+      <div class="tree-status" id="tree-status">Loading...</div>
+      <div class="tree" id="tree-root"></div>
+    </div>
   </div>
   <script>
     window.TREE_CONFIG = $tree_config;

@@ -16,8 +16,9 @@ from pynicotine.daemon.trees import build_user_tree
 
 class DaemonState:
     __slots__ = ("_lock", "share_files", "share_folders", "share_status", "chat_lines",
-                 "searches", "search_results", "max_search_results", "pending_requests",
-                 "_pending_request_id", "_user_browse_events")
+                 "searches", "search_results", "search_terms", "max_search_results",
+                 "pending_requests", "_pending_request_id", "_user_browse_events",
+                 "_user_browse_status")
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -27,10 +28,12 @@ class DaemonState:
         self.chat_lines = deque(maxlen=50)
         self.searches = {}
         self.search_results = {}
+        self.search_terms = {}
         self.max_search_results = 500
         self.pending_requests = {}
         self._pending_request_id = 0
         self._user_browse_events = {}
+        self._user_browse_status = {}
 
     def set_shares_scanning(self):
         with self._lock:
@@ -82,11 +85,44 @@ class DaemonState:
                 "results": 0
             }
             self.search_results.setdefault(token, [])
+            if term:
+                self.search_terms[term.casefold()] = token
 
     def remove_search(self, token):
         with self._lock:
-            self.searches.pop(token, None)
+            search = self.searches.pop(token, None)
             self.search_results.pop(token, None)
+            if search:
+                term = search.get("term") or ""
+                if term:
+                    self.search_terms.pop(term.casefold(), None)
+
+    def ensure_search(self, term):
+        clean_term = term.strip()
+        if not clean_term:
+            return None
+
+        key = clean_term.casefold()
+        with self._lock:
+            token = self.search_terms.get(key)
+            if token is not None:
+                return token
+
+        token = self.request_search(clean_term)
+        if token is None:
+            return None
+
+        with self._lock:
+            self.search_terms[key] = token
+            if token not in self.searches:
+                self.searches[token] = {
+                    "term": clean_term,
+                    "started_at": int(time.time()),
+                    "results": 0
+                }
+                self.search_results.setdefault(token, [])
+
+        return token
 
     def add_search_results(self, token, username, results, free_slots, speed, inqueue):
         if not results:
@@ -122,10 +158,12 @@ class DaemonState:
         return search, results
 
     def request_user_tree(self, username, local=False):
-        events.invoke_main_thread(self._ensure_user_browse_main_thread, username, local)
-
         event = self._get_user_browse_event(username, local)
+        events.invoke_main_thread(self._ensure_user_browse_main_thread, username, local)
         event.wait(timeout=30)
+        status = self._get_user_browse_status(username, local)
+        if status == "not_found":
+            return {"status": "not_found"}
 
         with self._lock:
             self._pending_request_id += 1
@@ -243,18 +281,35 @@ class DaemonState:
             pending["event"].set()
 
     def _get_user_browse_event(self, username, local):
-        local_username = core.users.login_username or config.sections["server"]["login"]
-        key = local_username if local else username
+        key = self._get_user_browse_key(username, local)
         with self._lock:
             event = self._user_browse_events.get(key)
             if event is None:
                 event = self._user_browse_events[key] = threading.Event()
             event.clear()
+            self._user_browse_status[key] = "loading"
         return event
+
+    def _get_user_browse_status(self, username, local):
+        key = self._get_user_browse_key(username, local)
+        with self._lock:
+            return self._user_browse_status.get(key)
+
+    def _get_user_browse_key(self, username, local):
+        local_username = core.users.login_username or config.sections["server"]["login"]
+        return local_username if local else username
 
     def notify_user_browse(self, username):
         with self._lock:
             event = self._user_browse_events.get(username)
+            self._user_browse_status[username] = "ready"
+        if event:
+            event.set()
+
+    def notify_user_browse_not_found(self, username):
+        with self._lock:
+            event = self._user_browse_events.get(username)
+            self._user_browse_status[username] = "not_found"
         if event:
             event.set()
 

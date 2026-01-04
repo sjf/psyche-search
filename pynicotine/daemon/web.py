@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from string import Template
 from urllib.parse import parse_qs
+from urllib.parse import quote
+from urllib.parse import unquote
 from urllib.parse import urlparse
 from importlib import resources
 
@@ -109,18 +111,24 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path.startswith("/search/"):
-            token_text = parsed.path.split("/", 2)[2]
-            if token_text.endswith("/tree"):
-                token_text = token_text[:-len("/tree")]
-            if token_text.endswith("/tree.json"):
-                token_text = token_text[:-len("/tree.json")]
-                self._serve_search_tree(token_text)
+            term_text = parsed.path.split("/", 2)[2]
+            if term_text.endswith("/tree"):
+                term_text = term_text[:-len("/tree")]
+            if term_text.endswith("/tree.json"):
+                term_text = term_text[:-len("/tree.json")]
+                self._serve_search_tree(term_text)
             else:
+                term = unquote(term_text)
+                token = self.server.state.ensure_search(term)
+                if token is None:
+                    self._send_response(400, "Missing search term", "text/plain; charset=utf-8")
+                    return
                 self._serve_tree_page(
-                    f"Search Tree #{token_text}",
-                    f"/search/{token_text}/tree.json",
+                    "Search Results",
+                    f"/search/{term_text}/tree.json",
                     "/search",
-                    expand_depth=8
+                    expand_depth=8,
+                    subtitle=term
                 )
             return
 
@@ -176,15 +184,12 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
             self._send_response(400, "Missing search term", "text/plain; charset=utf-8")
             return
 
-        token = self.server.state.request_search(term)
-        if token is None:
-            self._send_response(500, "Search could not be started", "text/plain; charset=utf-8")
-            return
-
-        self._send_redirect(f"/search/{token}/tree")
+        encoded_term = quote(term, safe="")
+        self._send_redirect(f"/search/{encoded_term}")
 
     def _serve_index(self):
         snapshot = self.server.state.snapshot()
+        nav = self.server.renderer.render("nav.html")
 
         status = html.escape(snapshot["status"])
         username = html.escape(snapshot["username"] or "unknown")
@@ -245,6 +250,7 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
 
         body = self.server.renderer.render(
             "index.html",
+            nav=nav,
             share_status=share_status,
             username=username,
             status=status,
@@ -268,19 +274,25 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
         body = json.dumps(snapshot, indent=2)
         self._send_response(200, body, "application/json; charset=utf-8")
 
-    def _serve_tree_page(self, title, data_url, back_url, expand_depth=1):
+    def _serve_tree_page(self, title, data_url, back_url, expand_depth=1, subtitle=""):
         safe_title = html.escape(title)
         safe_back_url = html.escape(back_url)
+        subtitle_html = ""
+        if subtitle:
+            subtitle_html = f"<div class=\\\"subtitle\\\">{html.escape(subtitle)}</div>"
         tree_config = json.dumps({
             "dataUrl": data_url,
             "expandDepth": expand_depth,
             "downloadEnabled": True
         })
+        nav = self.server.renderer.render("nav.html")
         body = self.server.renderer.render(
             "tree.html",
+            nav=nav,
             page_title=safe_title,
             title=safe_title,
             back_url=safe_back_url,
+            subtitle_html=subtitle_html,
             tree_config=tree_config
         )
         self._send_response(200, body, "text/html; charset=utf-8")
@@ -293,11 +305,11 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
         data = self.server.state.request_user_tree(username, local=False)
         self._send_response(200, json.dumps(data), "application/json; charset=utf-8")
 
-    def _serve_search_tree(self, token_text):
-        try:
-            token = int(token_text)
-        except ValueError:
-            self._send_response(404, "Not Found", "text/plain; charset=utf-8")
+    def _serve_search_tree(self, term_text):
+        term = unquote(term_text)
+        token = self.server.state.ensure_search(term)
+        if token is None:
+            self._send_response(400, "Missing search term", "text/plain; charset=utf-8")
             return
 
         tree = self.server.state.build_search_tree(token)
@@ -308,11 +320,13 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
         self._send_response(200, body, "application/json; charset=utf-8")
 
     def _serve_user_form(self):
-        body = self.server.renderer.render("user_form.html")
+        nav = self.server.renderer.render("nav.html")
+        body = self.server.renderer.render("user_form.html", nav=nav)
         self._send_response(200, body, "text/html; charset=utf-8")
 
     def _serve_downloads(self):
-        body = self.server.renderer.render("downloads.html")
+        nav = self.server.renderer.render("nav.html")
+        body = self.server.renderer.render("downloads.html", nav=nav)
         self._send_response(200, body, "text/html; charset=utf-8")
 
     def _serve_downloads_json(self):
@@ -330,21 +344,21 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
         searches = snapshot.get("searches", {})
 
         rows = []
-        for token, data in sorted(searches.items(), key=lambda item: item[0], reverse=True):
+        for _token, data in sorted(searches.items(), key=lambda item: item[1].get("started_at", 0), reverse=True):
             term = html.escape(data.get("term", ""))
-            count = data.get("results", 0)
             started = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(data.get("started_at", 0)))
+            term_url = quote(data.get("term", ""), safe="")
             rows.append(
                 "<tr>"
-                f"<td><a class=\"link\" href=\"/search/{token}\">#{token}</a></td>"
-                f"<td>{term}</td>"
-                f"<td>{count}</td>"
+                f"<td><a class=\"link\" href=\"/search/{term_url}\">{term}</a></td>"
                 f"<td>{started}</td>"
                 "</tr>"
             )
 
+        nav = self.server.renderer.render("nav.html")
         body = self.server.renderer.render(
             "search.html",
+            nav=nav,
             history_rows="".join(rows)
         )
         self._send_response(200, body, "text/html; charset=utf-8")
