@@ -21,6 +21,7 @@ from pynicotine.slskmessages import SayChatroom
 from pynicotine.slskmessages import SetRoomTicker
 from pynicotine.utils import censor_text
 from pynicotine.utils import find_whole_word
+from pynicotine.utils import replace_text
 
 
 class JoinedRoom:
@@ -205,8 +206,7 @@ class ChatRooms:
         room, message = event
 
         if config.sections["words"]["replacewords"]:
-            for word, replacement in config.sections["words"]["autoreplaced"].items():
-                message = message.replace(str(word), str(replacement))
+            message = replace_text(message, config.sections["words"]["autoreplaced"])
 
         # Server rejects messages containing newlines, filter them
         message = message.replace("\r", "").replace("\n", " ")
@@ -460,18 +460,41 @@ class ChatRooms:
             self.update_completions()
             core.privatechat.update_completions()
 
-    def get_message_type(self, user, text):
+    def get_message_type(self, username, message):
 
-        if text.startswith("/me "):
+        if message.startswith("/me "):
             return "action"
 
-        if user == core.users.login_username:
+        if username == core.users.login_username:
             return "local"
 
-        if core.users.login_username and find_whole_word(core.users.login_username.lower(), text.lower()) > -1:
-            return "hilite"
-
         return "remote"
+
+    def get_mention_type(self, username, message):
+
+        message_lower = message.lower()
+
+        if core.users.login_username and find_whole_word(core.users.login_username.lower(), message_lower) > -1:
+            return "self", core.users.login_username
+
+        if not config.sections["words"]["watch_keywords"]:
+            return None, None
+
+        username_lower = username.lower()
+
+        for word in config.sections["words"]["keywords"]:
+            word_lower = word.strip().lower()
+
+            if not word_lower:
+                continue
+
+            if find_whole_word(word_lower, message_lower) > -1:
+                return "keyword", word
+
+            if word_lower == username_lower:
+                return "username", username
+
+        return None, None
 
     def _say_chat_room(self, msg, is_global=False):
         """Server code 13."""
@@ -511,12 +534,13 @@ class ChatRooms:
         message = msg.message
         msg.message_type = self.get_message_type(username, message)
         is_action_message = (msg.message_type == "action")
+        msg.mention_type, msg.mention_keyword = self.get_mention_type(username, message)
 
         if is_action_message:
             msg.message = message = message.replace("/me ", "", 1)
 
         if config.sections["words"]["censorwords"] and username != core.users.login_username:
-            message = censor_text(message, censored_patterns=config.sections["words"]["censored"])
+            msg.message = message = censor_text(message, censored_patterns=config.sections["words"]["censored"])
 
         if config.sections["logging"]["chatrooms"] or room in config.sections["logging"]["rooms"]:
             if is_action_message:

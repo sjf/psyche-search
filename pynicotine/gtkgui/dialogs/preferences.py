@@ -73,18 +73,17 @@ class NetworkPage:
             self.current_port_label,
             self.listen_port_spinner,
             self.network_interface_label,
+            self.password_row_revealer,
             self.soulseek_server_entry,
             self.upnp_toggle,
-            self.username_entry
+            self.username_label
         ) = self.widgets = ui.load(scope=self, path="settings/network.ui")
 
         self.application = application
 
-        self.username_entry.set_max_length(core.users.USERNAME_MAX_LENGTH)
-
         for event_name, callback in (
-            ("server-disconnect", self.update_port),
-            ("server-login", self.update_port)
+            ("server-disconnect", self.server_disconnect),
+            ("server-login", self.server_login)
         ):
             events.connect(event_name, callback)
 
@@ -103,7 +102,6 @@ class NetworkPage:
         self.options = {
             "server": {
                 "server": None,  # Special case in set_settings
-                "login": self.username_entry,
                 "portrange": None,  # Special case in set_settings
                 "autoaway": self.auto_away_spinner,
                 "autoreply": self.auto_reply_message_entry,
@@ -131,6 +129,19 @@ class NetworkPage:
 
         self.port_checker.port = core.users.public_port
 
+    def server_login(self, *_args):
+        self.password_row_revealer.set_reveal_child(True)
+        self.update_port()
+
+    def server_disconnect(self, *_args):
+
+        for dialog in self.application.preferences.active_dialogs:
+            if isinstance(dialog, MessageDialog) and dialog.callback is self.on_change_password_response:
+                dialog.close()
+
+        self.password_row_revealer.set_reveal_child(False)
+        self.update_port()
+
     def set_settings(self):
 
         # Network interfaces
@@ -150,6 +161,10 @@ class NetworkPage:
         self.update_port()
 
         # Special options
+        username = core.users.login_username or config.sections["server"]["login"]
+        self.username_label.set_markup(f"<b>{username}</b>" if username else _("No account added"))
+        self.password_row_revealer.set_reveal_child(core.users.login_status != UserStatus.OFFLINE)
+
         server_hostname, server_port = config.sections["server"]["server"]
         self.soulseek_server_entry.set_text(f"{server_hostname}:{server_port}")
 
@@ -170,7 +185,6 @@ class NetworkPage:
         return {
             "server": {
                 "server": server_addr,
-                "login": self.username_entry.get_text(),
                 "portrange": (listen_port, listen_port),
                 "autoaway": self.auto_away_spinner.get_value_as_int(),
                 "autoreply": self.auto_reply_message_entry.get_text(),
@@ -184,47 +198,75 @@ class NetworkPage:
         open_uri(url)
         return True
 
-    def on_change_password_response(self, dialog, _response_id, user_status):
+    def on_log_in_as_response(self, dialog, _response_id, _data):
+
+        username = dialog.get_entry_value().strip()
+        password = dialog.get_second_entry_value()
+
+        if username and not password:
+            self.on_log_in_as(
+                username=username,
+                error=_("Please enter a password, or leave the username empty to log out.")
+            )
+            return
+
+        self.username_label.set_markup(f"<b>{username}</b>" if username else _("No account added"))
+        core.users.log_in_as(username, password)
+
+    def on_log_in_as(self, *_args, username=None, error=None):
+
+        message = ""
+
+        if error:
+            message += error + "\n\n"
+
+        message += _("Enter a username and password to log in as. If the user does not exist,"
+                     " a new account will be registered.")
+
+        if not username:
+            username = core.users.login_username or config.sections["server"]["login"]
+
+        EntryDialog(
+            parent=self.application.preferences,
+            title=_("Log In As"),
+            message=message,
+            default=username,
+            use_second_entry=True,
+            second_max_length=core.users.USERNAME_MAX_LENGTH,
+            second_visibility=False,
+            action_button_label=_("_Log In"),
+            callback=self.on_log_in_as_response
+        ).present()
+
+    def on_change_password_response(self, dialog, _response_id, _data):
 
         password = dialog.get_entry_value()
 
-        if user_status != core.users.login_status:
-            MessageDialog(
-                parent=self.application.preferences,
-                title=_("Password Change Rejected"),
-                message=("Since your login status changed, your password has not been changed. Please try again.")
-            ).present()
-            return
-
         if not password:
-            self.on_change_password()
-            return
-
-        if core.users.login_status == UserStatus.OFFLINE:
-            config.sections["server"]["passw"] = password
-            config.write_configuration()
+            self.on_change_password(error=_("Please enter a password."))
             return
 
         core.users.request_change_password(password)
 
-    def on_change_password(self, *_args):
+    def on_change_password(self, *_args, error=None):
 
-        if core.users.login_status != UserStatus.OFFLINE:
-            message = _("Enter a new password for your Soulseek account:")
-        else:
-            message = (_("You are currently logged out of the Soulseek network. If you want to change "
-                         "the password of an existing Soulseek account, you need to be logged into that account.")
-                       + "\n\n"
-                       + _("Enter password to use when logging in:"))
+        if core.users.login_status == UserStatus.OFFLINE:
+            return
+
+        message = ""
+
+        if error is not None:
+            message += error + "\n\n"
+
+        message += _("Enter a new password for your account %s:") % core.users.login_username
 
         EntryDialog(
             parent=self.application.preferences,
             title=_("Change Password"),
             message=message,
             visibility=False,
-            action_button_label=_("_Change"),
-            callback=self.on_change_password_response,
-            callback_data=core.users.login_status
+            action_button_label=_("Ch_ange"),
+            callback=self.on_change_password_response
         ).present()
 
     def on_default_server(self, *_args):
@@ -601,11 +643,10 @@ class SharesPage:
             self.rescan_daily_toggle,
             self.rescan_hour_container,
             self.rescan_on_startup_toggle,
-            self.reveal_buddy_shares_toggle,
-            self.reveal_trusted_shares_toggle,
             self.shares_list_container,
             self.shares_list_page,
-            self.stack
+            self.stack,
+            self.visible_to_button
         ) = self.widgets = ui.load(scope=self, path="settings/shares.ui")
 
         self.application = application
@@ -615,6 +656,8 @@ class SharesPage:
         self.buddy_shared_folders = []
         self.trusted_shared_folders = []
         self.share_filters = []
+        self.reveal_buddy_shares = False
+        self.reveal_trusted_shares = False
 
         items = []
         for hour in range(24):
@@ -714,9 +757,7 @@ class SharesPage:
             "transfers": {
                 "rescanonstartup": self.rescan_on_startup_toggle,
                 "rescan_shares_daily": self.rescan_daily_toggle,
-                "rescan_shares_hour": self.rescan_hour_combobox,
-                "reveal_buddy_shares": self.reveal_buddy_shares_toggle,
-                "reveal_trusted_shares": self.reveal_trusted_shares_toggle
+                "rescan_shares_hour": self.rescan_hour_combobox
             }
         }
 
@@ -744,6 +785,8 @@ class SharesPage:
         self.buddy_shared_folders = config.sections["transfers"]["buddyshared"][:]
         self.trusted_shared_folders = config.sections["transfers"]["trustedshared"][:]
         self.share_filters = config.sections["transfers"]["share_filters"][:]
+        self.reveal_buddy_shares = config.sections["transfers"]["reveal_buddy_shares"]
+        self.reveal_trusted_shares = config.sections["transfers"]["reveal_trusted_shares"]
 
         unreadable_icon = "dialog-warning-symbolic"
         unreadable_shares = core.shares.check_shares_available()
@@ -783,10 +826,76 @@ class SharesPage:
                 "rescanonstartup": self.rescan_on_startup_toggle.get_active(),
                 "rescan_shares_daily": self.rescan_daily_toggle.get_active(),
                 "rescan_shares_hour": self.rescan_hour_combobox.get_selected_id(),
-                "reveal_buddy_shares": self.reveal_buddy_shares_toggle.get_active(),
-                "reveal_trusted_shares": self.reveal_trusted_shares_toggle.get_active()
+                "reveal_buddy_shares": self.reveal_buddy_shares,
+                "reveal_trusted_shares": self.reveal_trusted_shares
             }
         }
+
+    def on_change_stack_page(self, *_args):
+        child_name = self.stack.get_visible_child_name()
+        self.visible_to_button.set_visible(child_name == "shared_folders")
+
+    def on_visibility_to_response(self, dialog, _response_id, _data):
+
+        visible_to = dialog.get_entry_value().strip()
+
+        if visible_to == _("Only buddies can view shares"):
+            self.reveal_buddy_shares = False
+            self.reveal_trusted_shares = False
+
+        elif visible_to == _("Everyone can view buddy shares"):
+            self.reveal_buddy_shares = True
+            self.reveal_trusted_shares = False
+
+        elif visible_to == _("Everyone can view trusted shares"):
+            self.reveal_buddy_shares = False
+            self.reveal_trusted_shares = True
+
+        elif visible_to == _("Everyone can view buddy & trusted shares"):
+            self.reveal_buddy_shares = True
+            self.reveal_trusted_shares = True
+
+    def on_visibility_to(self, *_args):
+
+        default = ""
+
+        if not self.reveal_buddy_shares and not self.reveal_trusted_shares:
+            default = _("Only buddies can view shares")
+
+        elif self.reveal_buddy_shares and not self.reveal_trusted_shares:
+            default = _("Everyone can view buddy shares")
+
+        elif not self.reveal_buddy_shares and self.reveal_trusted_shares:
+            default = _("Everyone can view trusted shares")
+
+        elif self.reveal_buddy_shares and self.reveal_trusted_shares:
+            default = _("Everyone can view buddy & trusted shares")
+
+        EntryDialog(
+            parent=self.application.preferences,
+            title=_("Buddy Share Visibility"),
+            message="\n\n".join((
+                _("Make buddy/trusted shares visible to everyone, but require users to "
+                  "request access by messaging you. Such files are displayed with an indicator next to "
+                  "them, and users can choose whether or not they want to see the files in their "
+                  "search results."),
+
+                _("This option is not recommended in most cases. It is a last resort when "
+                  "providing unrestricted access is impractical, but you want to indicate that "
+                  "files are available on request. Including a comment about access requests on your user "
+                  "profile is recommended.")
+            )),
+            default=default,
+            droplist=[
+                _("Only buddies can view shares"),
+                _("Everyone can view buddy shares"),
+                _("Everyone can view trusted shares"),
+                _("Everyone can view buddy & trusted shares")
+            ],
+            entry_editable=False,
+            action_button_label=_("_Change"),
+            callback=self.on_visibility_to_response
+        ).present()
 
     def on_add_shared_folder_selected(self, selected, _data):
 
@@ -1606,9 +1715,10 @@ class ChatsPage:
     def __init__(self, application):
 
         (
+            self.auto_replace_page,
             self.auto_replace_words_toggle,
             self.censor_list_container,
-            self.censor_list_page,
+            self.censor_page,
             self.censor_text_patterns_toggle,
             self.complete_buddy_names_toggle,
             self.complete_commands_toggle,
@@ -1620,16 +1730,18 @@ class ChatsPage:
             self.enable_spell_checker_toggle,
             self.enable_tab_completion_toggle,
             self.format_codes_label,
+            self.keyword_list_container,
+            self.mentions_page,
             self.min_chars_dropdown_spinner,
             self.recent_private_messages_spinner,
             self.recent_room_messages_spinner,
             self.reopen_private_chats_toggle,
             self.replacement_list_container,
-            self.replacement_list_page,
             self.room_invitations_toggle,
             self.stack,
             self.timestamp_private_chat_entry,
             self.timestamp_room_entry,
+            self.watch_keywords_toggle
         ) = self.widgets = ui.load(scope=self, path="settings/chats.ui")
 
         self.application = application
@@ -1640,6 +1752,27 @@ class ChatsPage:
         self.format_codes_label.set_markup(
             f"<a href='{format_codes_url}' title='{format_codes_url}'>{format_codes_label}</a>")
         self.format_codes_label.connect("activate-link", self.on_activate_link)
+
+        self.keywords = []
+        self.keyword_list_view = TreeView(
+            application.window, parent=self.keyword_list_container, multi_select=True,
+            activate_row_callback=self.on_edit_keyword,
+            delete_accelerator_callback=self.on_remove_keyword,
+            columns={
+                "keyword": {
+                    "column_type": "text",
+                    "title": _("Keyword"),
+                    "default_sort_type": "ascending"
+                }
+            }
+        )
+
+        self.censor_popup_menu = PopupMenu(application, self.keyword_list_view.widget)
+        self.censor_popup_menu.add_items(
+            ("#" + _("_Edit…"), self.on_edit_keyword),
+            ("", None),
+            ("#" + _("Remove"), self.on_remove_keyword)
+        )
 
         self.censored_patterns = []
         self.censor_list_view = TreeView(
@@ -1695,8 +1828,9 @@ class ChatsPage:
         )
 
         for widget, name, title in (
-            (self.replacement_list_page, "auto_replace", _("Auto-Replace")),
-            (self.censor_list_page, "censor", _("Censor"))
+            (self.mentions_page, "mentions", _("Mentions")),
+            (self.auto_replace_page, "auto_replace", _("Auto-Replace")),
+            (self.censor_page, "censor", _("Censor"))
         ):
             self.stack.add_titled(widget, name, title)
 
@@ -1722,6 +1856,8 @@ class ChatsPage:
                 "buddies": self.complete_buddy_names_toggle,
                 "roomusers": self.complete_room_usernames_toggle,
                 "commands": self.complete_commands_toggle,
+                "keywords": self.keyword_list_view,
+                "watch_keywords": self.watch_keywords_toggle,
                 "censored": self.censor_list_view,
                 "censorwords": self.censor_text_patterns_toggle,
                 "autoreplaced": self.replacement_list_view,
@@ -1737,6 +1873,7 @@ class ChatsPage:
         for menu in self.popup_menus:
             menu.destroy()
 
+        self.keyword_list_view.destroy()
         self.censor_list_view.destroy()
         self.replacement_list_view.destroy()
 
@@ -1744,8 +1881,10 @@ class ChatsPage:
 
     def set_settings(self):
 
+        self.keyword_list_view.clear()
         self.censor_list_view.clear()
         self.replacement_list_view.clear()
+        self.keywords.clear()
         self.censored_patterns.clear()
         self.replacements.clear()
 
@@ -1755,6 +1894,7 @@ class ChatsPage:
         self.enable_ctcp_toggle.set_active(not config.sections["server"]["ctcpmsgs"])
         self.format_codes_label.set_visible(not self.application.isolated_mode)
 
+        self.keywords = config.sections["words"]["keywords"][:]
         self.censored_patterns = config.sections["words"]["censored"][:]
         self.replacements = config.sections["words"]["autoreplaced"].copy()
 
@@ -1782,6 +1922,8 @@ class ChatsPage:
                 "buddies": self.complete_buddy_names_toggle.get_active(),
                 "roomusers": self.complete_room_usernames_toggle.get_active(),
                 "commands": self.complete_commands_toggle.get_active(),
+                "keywords": self.keywords[:],
+                "watch_keywords": self.watch_keywords_toggle.get_active(),
                 "censored": self.censored_patterns[:],
                 "censorwords": self.censor_text_patterns_toggle.get_active(),
                 "autoreplaced": self.replacements.copy(),
@@ -1802,6 +1944,74 @@ class ChatsPage:
     def on_default_timestamp_private_chat(self, *_args):
         self.timestamp_private_chat_entry.set_text(config.defaults["logging"]["private_timestamp"])
 
+    def on_add_keyword_response(self, dialog, _response_id, _data):
+
+        keywords = dialog.get_entry_value().split("\n")
+        is_first_item = True
+
+        for keyword in keywords:
+            if not keyword or keyword in self.keywords:
+                continue
+
+            self.keywords.append(keyword)
+            self.keyword_list_view.add_row([keyword], select_row=is_first_item)
+
+            is_first_item = False
+
+    def on_add_keyword(self, *_args):
+
+        EntryDialog(
+            parent=self.application.preferences,
+            title=_("Add Keyword"),
+            message=_("Enter a list of keywords or usernames you want to watch for. Chat messages "
+                      "containing the keywords will be highlighted."),
+            action_button_label=_("_Add"),
+            multiline=True,
+            callback=self.on_add_keyword_response
+        ).present()
+
+    def on_edit_keyword_response(self, dialog, _response_id, iterator):
+
+        keyword = dialog.get_entry_value()
+
+        if not keyword:
+            return
+
+        old_keyword = self.keyword_list_view.get_row_value(iterator, "keyword")
+        orig_iterator = self.keyword_list_view.iterators[old_keyword]
+
+        self.keyword_list_view.remove_row(orig_iterator)
+        self.keywords.remove(old_keyword)
+
+        self.keyword_list_view.add_row([keyword])
+        self.keywords.append(keyword)
+
+    def on_edit_keyword(self, *_args):
+
+        for iterator in self.keyword_list_view.get_selected_rows():
+            keyword = self.keyword_list_view.get_row_value(iterator, "keyword")
+
+            EntryDialog(
+                parent=self.application.preferences,
+                title=_("Edit Keyword"),
+                message=_("Enter a keyword or username you want to watch for. Chat messages "
+                          "containing the keyword will be highlighted."),
+                action_button_label=_("_Edit"),
+                callback=self.on_edit_keyword_response,
+                callback_data=iterator,
+                default=keyword
+            ).present()
+            return
+
+    def on_remove_keyword(self, *_args):
+
+        for iterator in reversed(list(self.keyword_list_view.get_selected_rows())):
+            keyword = self.keyword_list_view.get_row_value(iterator, "keyword")
+            orig_iterator = self.keyword_list_view.iterators[keyword]
+
+            self.keyword_list_view.remove_row(orig_iterator)
+            self.keywords.remove(keyword)
+
     def on_add_censored_response(self, dialog, _response_id, _data):
 
         patterns = dialog.get_entry_value().split("\n")
@@ -1821,8 +2031,7 @@ class ChatsPage:
         EntryDialog(
             parent=self.application.preferences,
             title=_("Censor Patterns"),
-            message=_("Enter a list of patterns you want to censor. Add spaces around the pattern if you don't "
-                      "want to match strings inside words (may fail at the beginning and end of lines)."),
+            message=_("Enter a list of patterns you want to censor:"),
             action_button_label=_("_Add"),
             multiline=True,
             callback=self.on_add_censored_response
@@ -1852,8 +2061,7 @@ class ChatsPage:
             EntryDialog(
                 parent=self.application.preferences,
                 title=_("Edit Censored Pattern"),
-                message=_("Enter a pattern you want to censor. Add spaces around the pattern if you don't "
-                          "want to match strings inside words (may fail at the beginning and end of lines)."),
+                message=_("Enter a pattern you want to censor:"),
                 action_button_label=_("_Edit"),
                 callback=self.on_edit_censored_response,
                 callback_data=iterator,
@@ -2004,6 +2212,7 @@ class UserInterfacePage:
             self.notification_chatroom_toggle,
             self.notification_download_file_toggle,
             self.notification_download_folder_toggle,
+            self.notification_private_mention_toggle,
             self.notification_private_message_toggle,
             self.notification_queued_upload_toggle,
             self.notification_sounds_toggle,
@@ -2257,6 +2466,7 @@ class UserInterfacePage:
                 "notification_popup_folder": self.notification_download_folder_toggle,
                 "notification_popup_queued_upload": self.notification_queued_upload_toggle,
                 "notification_popup_private_message": self.notification_private_message_toggle,
+                "notification_popup_private_mention": self.notification_private_mention_toggle,
                 "notification_popup_chatroom": self.notification_chatroom_toggle,
                 "notification_popup_chatroom_mention": self.notification_chatroom_mention_toggle,
                 "notification_popup_wish": self.notification_wish_toggle
@@ -2341,6 +2551,7 @@ class UserInterfacePage:
                 "notification_popup_folder": self.notification_download_folder_toggle.get_active(),
                 "notification_popup_queued_upload": self.notification_queued_upload_toggle.get_active(),
                 "notification_popup_private_message": self.notification_private_message_toggle.get_active(),
+                "notification_popup_private_mention": self.notification_private_mention_toggle.get_active(),
                 "notification_popup_chatroom": self.notification_chatroom_toggle.get_active(),
                 "notification_popup_chatroom_mention": self.notification_chatroom_mention_toggle.get_active(),
                 "notification_popup_wish": self.notification_wish_toggle.get_active()
@@ -3622,7 +3833,6 @@ class Preferences(Dialog):
                 options[key].update(data)
 
         for section, key in (
-            ("server", "login"),
             ("server", "portrange"),
             ("server", "interface"),
             ("server", "server")

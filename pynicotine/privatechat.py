@@ -13,6 +13,7 @@ from pynicotine.slskmessages import SayChatroom
 from pynicotine.slskmessages import UserStatus
 from pynicotine.utils import censor_text
 from pynicotine.utils import find_whole_word
+from pynicotine.utils import replace_text
 
 
 class PrivateChat:
@@ -126,8 +127,7 @@ class PrivateChat:
         username, message = user_text
 
         if config.sections["words"]["replacewords"] and not message.startswith("\x01"):
-            for word, replacement in config.sections["words"]["autoreplaced"].items():
-                message = message.replace(str(word), str(replacement))
+            message = replace_text(message, config.sections["words"]["autoreplaced"])
 
         # Server rejects messages containing newlines, filter them
         message = message.replace("\r", "").replace("\n", " ")
@@ -188,10 +188,28 @@ class PrivateChat:
         if is_outgoing_message:
             return "local"
 
-        if core.users.login_username and find_whole_word(core.users.login_username.lower(), text.lower()) > -1:
-            return "hilite"
-
         return "remote"
+
+    def get_mention_type(self, message):
+
+        message_lower = message.lower()
+
+        if core.users.login_username and find_whole_word(core.users.login_username.lower(), message_lower) > -1:
+            return "self", core.users.login_username
+
+        if not config.sections["words"]["watch_keywords"]:
+            return None, None
+
+        for word in config.sections["words"]["keywords"]:
+            word_lower = word.strip().lower()
+
+            if not word_lower:
+                continue
+
+            if find_whole_word(word_lower, message_lower) > -1:
+                return "keyword", word
+
+        return None, None
 
     def _message_user(self, msg, queued_message=False):
         """Server code 22."""
@@ -259,6 +277,9 @@ class PrivateChat:
         is_action_message = (msg.message_type == "action")
         ctcp_query = ""
 
+        if msg.message_type != "local":
+            msg.mention_type, msg.mention_keyword = self.get_mention_type(message)
+
         if message.startswith("\x01") and message.endswith("\x01"):
             ctcp_query = msg.message[1:-1].strip()
             msg.message = message = f"CTCP {ctcp_query}"
@@ -267,7 +288,7 @@ class PrivateChat:
             msg.message = message = message.replace("/me ", "", 1)
 
         if not is_outgoing_message and config.sections["words"]["censorwords"]:
-            message = censor_text(message, censored_patterns=config.sections["words"]["censored"])
+            msg.message = message = censor_text(message, censored_patterns=config.sections["words"]["censored"])
 
         if config.sections["logging"]["privatechat"] or username in config.sections["logging"]["private_chats"]:
             if is_action_message:
