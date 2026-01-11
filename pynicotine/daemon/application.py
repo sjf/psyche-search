@@ -42,12 +42,11 @@ class Application:
         events.connect("quit", self._on_quit)
 
     def run(self):
-        core.start()
-
         if config.need_config():
             log.add("Daemon mode requires username/password in the config file.")
             return 1
 
+        core.start()
         core.connect()
         if not self._start_web_server():
             return 1

@@ -408,4 +408,4 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, _format, *args):
-        log.add_debug("Daemon web request: %s", args)
+        log.add_debug("Daemon web request: %s", (args,))
