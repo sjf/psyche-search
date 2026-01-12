@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, FileText, Folder, Music2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
@@ -63,16 +63,14 @@ function formatSpeed(value?: number) {
   return `${rounded} ${units[unitIndex]}`;
 }
 
-function getFileType(name: string) {
-  const trimmed = name.trim();
-  const lastDot = trimmed.lastIndexOf(".");
-  if (lastDot <= 0 || lastDot === trimmed.length - 1) {
-    return "-";
-  }
-  return trimmed.slice(lastDot + 1).toUpperCase();
-}
-
 type SortKey = "user" | "speed" | "folder" | "file" | "size" | "attributes";
+
+function getFileIcon(name: string) {
+  if (name.match(/\.(mp3|flac|ogg|opus|wav|aac|m4a|wma|alac|aiff|ape)$/i)) {
+    return <Music2 size={14} strokeWidth={1.6} />;
+  }
+  return <FileText size={14} strokeWidth={1.6} />;
+}
 
 export default function SearchResultsPage() {
   const { term } = useParams();
@@ -398,7 +396,7 @@ export default function SearchResultsPage() {
                     </button>
                   )}
                 </th>
-                <th>
+                <th className="col-speed">
                   <button type="button" className="sortable" onClick={() => requestSort("speed")}>Speed</button>
                   {sortKey === "speed" && (
                     <button type="button" className="sort-arrow" onClick={() => requestSort("speed")}>
@@ -407,22 +405,14 @@ export default function SearchResultsPage() {
                   )}
                 </th>
                 <th>
-                  <button type="button" className="sortable" onClick={() => requestSort("folder")}>Folder</button>
+                  <button type="button" className="sortable" onClick={() => requestSort("folder")}>Directory</button>
                   {sortKey === "folder" && (
                     <button type="button" className="sort-arrow" onClick={() => requestSort("folder")}>
                       {sortArrow}
                     </button>
                   )}
                 </th>
-                <th>
-                  <button type="button" className="sortable" onClick={() => requestSort("file")}>File</button>
-                  {sortKey === "file" && (
-                    <button type="button" className="sort-arrow" onClick={() => requestSort("file")}>
-                      {sortArrow}
-                    </button>
-                  )}
-                </th>
-                <th>
+                <th className="col-size">
                   <button type="button" className="sortable" onClick={() => requestSort("size")}>Size</button>
                   {sortKey === "size" && (
                     <button type="button" className="sort-arrow" onClick={() => requestSort("size")}>
@@ -431,8 +421,7 @@ export default function SearchResultsPage() {
                   )}
                 </th>
                 <th>Download</th>
-                <th className="col-type">Type</th>
-                <th>
+                <th className="col-attributes">
                   <button type="button" className="sortable" onClick={() => requestSort("attributes")}>Attributes</button>
                   {sortKey === "attributes" && (
                     <button type="button" className="sort-arrow" onClick={() => requestSort("attributes")}>
@@ -445,7 +434,7 @@ export default function SearchResultsPage() {
             <tbody>
               {groupedResults.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="empty-cell">{status || "No results available."}</td>
+                  <td colSpan={6} className="empty-cell">{status || "No results available."}</td>
                 </tr>
               ) : (
                 groupedResults.flatMap((group) => [
@@ -461,25 +450,31 @@ export default function SearchResultsPage() {
                         <span>{group.user}</span>
                       </div>
                     </td>
-                    <td>{formatSpeed(group.speed)}</td>
+                    <td className="col-speed">{formatSpeed(group.speed)}</td>
                     <td className="mono">
                       <div className="results-folder">
+                        <span className="results-icon">
+                          <Folder size={14} strokeWidth={1.6} />
+                        </span>
                         <span>{group.folder}</span>
-                        <button
-                          type="button"
-                          className="icon-button icon-button-small"
-                          aria-label="Download folder"
-                          onClick={() => handleFolderDownload(group.user, group.files)}
-                        >
-                          <Download size={14} strokeWidth={1.6} />
-                        </button>
                       </div>
                     </td>
                     <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
+                    <td>
+                      <button
+                        type="button"
+                        className="icon-button icon-button-small icon-button-plain"
+                        aria-label="Download folder"
+                        title="Download directory"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleFolderDownload(group.user, group.files);
+                        }}
+                      >
+                        <Download size={18} strokeWidth={1.6} />
+                      </button>
+                    </td>
+                    <td>Folder</td>
                   </tr>,
                   ...group.files.map((file, index) => (
                     <tr
@@ -487,22 +482,29 @@ export default function SearchResultsPage() {
                       className={`results-file${index === group.files.length - 1 ? " results-file-last" : ""}`}
                     >
                       <td></td>
-                      <td></td>
-                      <td></td>
-                      <td className="mono">{file.file}</td>
-                      <td>{formatSize(file.size)}</td>
+                      <td className="col-speed"></td>
+                      <td className="mono">
+                        <span className="results-file-name">
+                          <span className="results-icon">{getFileIcon(file.file)}</span>
+                          {file.file}
+                        </span>
+                      </td>
+                      <td className="col-size">{formatSize(file.size)}</td>
                       <td>
                         <button
                           type="button"
-                          className="icon-button icon-button-small"
+                          className="icon-button icon-button-small icon-button-plain"
                           aria-label="Download file"
-                          onClick={() => requestDownload(file.user, file.path || "", file.size)}
+                          title="Download file"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            requestDownload(file.user, file.path || "", file.size);
+                          }}
                         >
-                          <Download size={14} strokeWidth={1.6} />
+                          <Download size={18} strokeWidth={1.6} />
                         </button>
                       </td>
-                      <td className="col-type">{getFileType(file.file)}</td>
-                      <td>{file.attributes || "-"}</td>
+                      <td className="col-attributes">{file.attributes || "-"}</td>
                     </tr>
                   ))
                 ])

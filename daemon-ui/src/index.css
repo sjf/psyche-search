@@ -453,9 +453,9 @@ button:disabled {
 }
 
 .mono {
-  font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
 }
 
 .grid-two {
@@ -495,6 +495,20 @@ button:disabled {
 .icon-button-small {
   width: 26px;
   height: 26px;
+}
+
+.icon-button-plain {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.icon-button-plain:hover {
+  color: var(--accent-strong);
+  transform: scale(1.08);
+  border: none;
+  filter: drop-shadow(0 0 6px rgba(244, 192, 27, 0.6));
 }
 
 .icon-button svg {
@@ -882,6 +896,22 @@ button:disabled {
   white-space: nowrap;
 }
 
+.col-size {
+  width: 110px;
+  white-space: nowrap;
+}
+
+.col-speed {
+  width: 90px;
+  white-space: nowrap;
+}
+
+.col-attributes {
+  width: 160px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .col-type {
   width: 44px;
   white-space: nowrap;
@@ -891,7 +921,7 @@ button:disabled {
   color: var(--text);
   font-weight: 400;
   border-bottom: none;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
 .user-status {
@@ -925,6 +955,21 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.results-file-name {
+  display: inline-block;
+  padding-left: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.results-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
 .downloads-group td {
   border-bottom: none;
 }
@@ -935,9 +980,15 @@ button:disabled {
 }
 
 .results-file td {
-  padding-top: 4px;
-  padding-bottom: 8px;
+  padding-top: 2px;
+  padding-bottom: 4px;
 }
+
+.results-group:hover td,
+.results-file:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 
 .results-file-last td {
   border-bottom: 1px solid var(--border);
