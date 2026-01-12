@@ -3,6 +3,27 @@
   const dataUrl = config.dataUrl || "";
   const expandDepth = Number.isInteger(config.expandDepth) ? config.expandDepth : 1;
   const downloadEnabled = config.downloadEnabled !== false;
+  const maxPollAttempts = Number.isInteger(config.maxPollAttempts) ? config.maxPollAttempts : 40;
+  const initialPollDelayMs = Number.isInteger(config.initialPollDelayMs) ? config.initialPollDelayMs : 200;
+  const maxPollDelayMs = Number.isInteger(config.maxPollDelayMs) ? config.maxPollDelayMs : 2000;
+  const pollBackoff = Number.isFinite(config.pollBackoff) ? config.pollBackoff : 1.5;
+
+  let pollAttempts = 0;
+  let pollDelayMs = initialPollDelayMs;
+  let pollTimer = null;
+  let requestInFlight = false;
+
+  function setStatus(statusText, showSpinner) {
+    const statusEl = document.getElementById("tree-status");
+    if (!statusEl) {
+      return;
+    }
+    if (showSpinner) {
+      statusEl.innerHTML = `${statusText} <span class="spinner" aria-hidden="true"></span>`;
+    } else {
+      statusEl.textContent = statusText;
+    }
+  }
 
   function isAudioFile(name) {
     const parts = name.split(".");
@@ -123,30 +144,51 @@
     container.appendChild(list);
   }
 
+  function schedulePoll() {
+    if (pollTimer || pollAttempts >= maxPollAttempts) {
+      return;
+    }
+    pollTimer = setTimeout(() => {
+      pollTimer = null;
+      loadTree();
+    }, pollDelayMs);
+    pollAttempts += 1;
+    pollDelayMs = Math.min(maxPollDelayMs, Math.round(pollDelayMs * pollBackoff));
+  }
+
   function loadTree() {
     if (!dataUrl) {
       return;
     }
+    if (requestInFlight) {
+      return;
+    }
+    requestInFlight = true;
     fetch(dataUrl)
       .then(response => response.json())
       .then(data => {
-        const statusEl = document.getElementById("tree-status");
+        requestInFlight = false;
         if (!data || data.status !== "ready") {
           if (data && data.status === "not_found") {
-            statusEl.textContent = "User not found.";
-          } else if (data && data.status === "loading") {
-            statusEl.textContent = "Loading...";
-          } else {
-            statusEl.textContent = "No data available.";
+            setStatus("User not found.", false);
+            return;
           }
+          if (data && (data.status === "loading" || data.status === "empty")) {
+            setStatus("Searching...", true);
+            schedulePoll();
+            return;
+          }
+          setStatus("No data available.", false);
+          schedulePoll();
           return;
         }
-        statusEl.textContent = "";
+        setStatus("", false);
         renderTree(data.tree);
       })
       .catch(() => {
-        const statusEl = document.getElementById("tree-status");
-        statusEl.textContent = "Failed to load tree data.";
+        requestInFlight = false;
+        setStatus("Failed to load tree data.", false);
+        schedulePoll();
       });
   }
 

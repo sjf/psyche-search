@@ -110,6 +110,11 @@ class Application:
         else:
             line = msg
 
+        if "Connected to server" in msg or "Disconnected from server" in msg:
+            self._state.set_connection_info(msg)
+        elif "External port" in msg:
+            self._state.set_portmap_info(msg)
+
         try:
             print(line, flush=True)
         except OSError:

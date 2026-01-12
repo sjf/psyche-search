@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import threading
 import time
 
@@ -9,7 +10,9 @@ from collections import deque
 from pynicotine.config import config
 from pynicotine.core import core
 from pynicotine.events import events
+from pynicotine.slskmessages import FileListMessage
 from pynicotine.slskmessages import UserStatus
+from pynicotine.transfers import TransferStatus
 from pynicotine.daemon.trees import build_search_tree
 from pynicotine.daemon.trees import build_user_tree
 
@@ -18,7 +21,8 @@ class DaemonState:
     __slots__ = ("_lock", "share_files", "share_folders", "share_status", "chat_lines",
                  "searches", "search_results", "search_terms", "max_search_results",
                  "pending_requests", "_pending_request_id", "_user_browse_events",
-                 "_user_browse_status")
+                 "_user_browse_status", "connection_info", "portmap_info",
+                 "download_path_overrides")
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -34,6 +38,17 @@ class DaemonState:
         self._pending_request_id = 0
         self._user_browse_events = {}
         self._user_browse_status = {}
+        self.connection_info = ""
+        self.portmap_info = ""
+        self.download_path_overrides = {}
+
+    def set_connection_info(self, message):
+        with self._lock:
+            self.connection_info = message
+
+    def set_portmap_info(self, message):
+        with self._lock:
+            self.portmap_info = message
 
     def set_shares_scanning(self):
         with self._lock:
@@ -97,6 +112,13 @@ class DaemonState:
                 if term:
                     self.search_terms.pop(term.casefold(), None)
 
+    def remove_search_term(self, term):
+        key = term.casefold()
+        with self._lock:
+            token = self.search_terms.get(key)
+        if token is not None:
+            self.remove_search(token)
+
     def ensure_search(self, term):
         clean_term = term.strip()
         if not clean_term:
@@ -138,14 +160,26 @@ class DaemonState:
                 return
 
             for fileinfo in results[:remaining]:
-                _code, name, size, _ext, _attrs = fileinfo
+                _code, name, size, _ext, file_attrs = fileinfo
+                attributes_text = ""
+                if file_attrs is not None:
+                    h_quality, _bitrate, h_length, _length = FileListMessage.parse_audio_quality_length(
+                        size, file_attrs
+                    )
+                    if h_quality and h_length:
+                        attributes_text = f"{h_quality}, {h_length}"
+                    elif h_quality:
+                        attributes_text = h_quality
+                    elif h_length:
+                        attributes_text = h_length
                 items.append({
                     "user": username,
                     "path": name,
                     "size": size,
                     "free_slots": free_slots,
                     "speed": speed,
-                    "inqueue": inqueue
+                    "inqueue": inqueue,
+                    "attributes": attributes_text
                 })
 
             self.searches[token]["results"] = len(items)
@@ -242,6 +276,58 @@ class DaemonState:
             return
         core.downloads.enqueue_download(username, virtual_path, size=size)
 
+    def pause_download(self, username, virtual_path):
+        events.invoke_main_thread(self._pause_download_main_thread, username, virtual_path)
+
+    def _pause_download_main_thread(self, username, virtual_path):
+        transfer = core.downloads.transfers.get(username + virtual_path)
+        if transfer is None:
+            return
+        core.downloads.abort_downloads([transfer], status=TransferStatus.PAUSED)
+
+    def cancel_download(self, username, virtual_path):
+        events.invoke_main_thread(self._cancel_download_main_thread, username, virtual_path)
+
+    def _cancel_download_main_thread(self, username, virtual_path):
+        transfer = core.downloads.transfers.get(username + virtual_path)
+        if transfer is None:
+            return
+        core.downloads.abort_downloads([transfer], status=TransferStatus.CANCELLED)
+
+    def resume_download(self, username, virtual_path):
+        events.invoke_main_thread(self._resume_download_main_thread, username, virtual_path)
+
+    def _resume_download_main_thread(self, username, virtual_path):
+        transfer = core.downloads.transfers.get(username + virtual_path)
+        if transfer is None:
+            return
+        core.downloads.retry_downloads([transfer])
+
+    def clear_download(self, username, virtual_path):
+        events.invoke_main_thread(self._clear_download_main_thread, username, virtual_path)
+
+    def _clear_download_main_thread(self, username, virtual_path):
+        transfer = core.downloads.transfers.get(username + virtual_path)
+        if transfer is None:
+            return
+        core.downloads.clear_downloads([transfer])
+
+    def clear_completed_downloads(self):
+        events.invoke_main_thread(self._clear_completed_downloads_main_thread)
+
+    def _clear_completed_downloads_main_thread(self):
+        core.downloads.clear_downloads(statuses=[TransferStatus.FINISHED])
+
+    def set_download_override(self, username, virtual_path, local_path):
+        key = username + virtual_path
+        with self._lock:
+            self.download_path_overrides[key] = local_path
+
+    def clear_download_override(self, username, virtual_path):
+        key = username + virtual_path
+        with self._lock:
+            self.download_path_overrides.pop(key, None)
+
     def request_downloads_snapshot(self):
         with self._lock:
             self._pending_request_id += 1
@@ -263,13 +349,27 @@ class DaemonState:
     def _downloads_snapshot_main_thread(self, request_id):
         downloads = []
         for transfer in core.downloads.transfers.values():
+            local_path = None
+            if transfer.status == TransferStatus.FINISHED:
+                override = self.download_path_overrides.get(transfer.username + transfer.virtual_path)
+                if override and os.path.exists(override):
+                    local_path = override
+                else:
+                    download_path, file_exists = core.downloads.get_complete_download_file_path(
+                        transfer.username, transfer.virtual_path, transfer.size, transfer.folder_path)
+                    if file_exists:
+                        local_path = download_path
+            if local_path is None and transfer.status == TransferStatus.FINISHED:
+                self.clear_download_override(transfer.username, transfer.virtual_path)
             downloads.append({
                 "user": transfer.username,
                 "path": transfer.virtual_path,
+                "virtual_path": transfer.virtual_path,
                 "status": transfer.status,
                 "size": transfer.size,
                 "offset": transfer.current_byte_offset or 0,
-                "folder": transfer.folder_path or ""
+                "folder": transfer.folder_path or "",
+                "local_path": local_path
             })
 
         with self._lock:
@@ -322,6 +422,8 @@ class DaemonState:
             searches = {
                 token: data.copy() for token, data in self.searches.items()
             }
+            connection_info = self.connection_info
+            portmap_info = self.portmap_info
 
         if share_files is None or share_folders is None:
             share_files, share_folders = compute_share_counts()
@@ -344,6 +446,8 @@ class DaemonState:
             "share_files": share_files,
             "share_folders": share_folders,
             "share_status": share_status,
+            "connection_info": connection_info,
+            "portmap_info": portmap_info,
             "stats": {
                 "since": since_text,
                 "started_downloads": stats.get("started_downloads", 0),
@@ -357,6 +461,10 @@ class DaemonState:
             "chat": chat_lines,
             "searches": searches
         }
+
+    def get_chat_snapshot(self):
+        with self._lock:
+            return list(self.chat_lines)
 
     def _get_status_label(self):
         if core.users is None:

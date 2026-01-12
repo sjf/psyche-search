@@ -1,4 +1,11 @@
 (function () {
+  const pollIntervalMs = 1000;
+  const idleStopAfter = 30;
+  let idleTicks = 0;
+  let lastSignature = "";
+  let pollTimer = null;
+  let stopped = false;
+
   function formatSize(value) {
     if (!value) {
       return "0";
@@ -44,12 +51,57 @@
     });
   }
 
+  function getSignature(items) {
+    try {
+      return JSON.stringify(items || []);
+    } catch (_error) {
+      return String(Date.now());
+    }
+  }
+
+  function scheduleNextPoll() {
+    if (stopped || pollTimer) {
+      return;
+    }
+    pollTimer = setTimeout(() => {
+      pollTimer = null;
+      loadDownloads();
+    }, pollIntervalMs);
+  }
+
   function loadDownloads() {
     fetch("/downloads.json")
       .then(response => response.json())
-      .then(data => renderRows(data || []))
-      .catch(() => renderRows([]));
+      .then(data => {
+        const items = data || [];
+        renderRows(items);
+        const signature = getSignature(items);
+        if (signature === lastSignature) {
+          idleTicks += 1;
+        } else {
+          idleTicks = 0;
+          lastSignature = signature;
+        }
+        if (idleTicks >= idleStopAfter) {
+          stopped = true;
+          return;
+        }
+        scheduleNextPoll();
+      })
+      .catch(() => {
+        renderRows([]);
+        scheduleNextPoll();
+      });
   }
 
   loadDownloads();
+  scheduleNextPoll();
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && stopped) {
+      idleTicks = 0;
+      stopped = false;
+      scheduleNextPoll();
+    }
+  });
 })();

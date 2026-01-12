@@ -101,6 +101,7 @@ def build_search_tree(results):
     for entry in results:
         user = entry.get("user", "")
         path = entry.get("path", "")
+        free_slots = entry.get("free_slots")
         if not user or not path:
             continue
 
@@ -129,7 +130,10 @@ def build_search_tree(results):
             "type": "file",
             "size": entry.get("size", 0),
             "path": entry.get("path", ""),
-            "user": user
+            "user": user,
+            "speed": entry.get("speed", 0),
+            "free_slots": free_slots,
+            "attributes": entry.get("attributes", "")
         })
 
     _sort_tree(root)
