@@ -35,6 +35,60 @@ a {
   min-height: 100vh;
 }
 
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(380px, 92vw);
+  background: #0f1116;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.login-card h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+.login-card p {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.login-field input {
+  color: var(--text);
+}
+
+.login-field input[type="text"] {
+  padding: 10px 12px;
+}
+
+.login-error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
 .sidebar {
   width: var(--sidebar-width);
   background: #0f1116;
@@ -253,6 +307,7 @@ a {
   border-bottom: 1px solid var(--border);
 }
 
+
 .results-status {
   padding: 10px 0;
   color: var(--text-dim);
@@ -312,6 +367,14 @@ tr:last-child td {
   margin-bottom: 12px;
 }
 
+.files-page .search-form {
+  margin-bottom: 4px;
+}
+
+.files-page .section {
+  gap: 4px;
+}
+
 .page-header .search-form {
   min-width: 360px;
 }
@@ -326,6 +389,15 @@ input[type="text"] {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 40px 10px 12px;
+  color: var(--text);
+}
+
+input[type="password"] {
+  flex: 1;
+  background: #0f1116;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
   color: var(--text);
 }
 
@@ -621,11 +693,12 @@ button:disabled {
 }
 
 .tree-panel {
-  padding: 12px 0;
+  padding: 0;
 }
 
 .tree-item {
   padding-left: 8px;
+  width: 100%;
 }
 
 .tree-row {
@@ -635,6 +708,12 @@ button:disabled {
   padding: 4px 0;
   cursor: pointer;
   color: var(--text-muted);
+  width: 100%;
+}
+
+.tree-label {
+  flex: 1;
+  min-width: 0;
 }
 
 .tree-row-top {
@@ -664,6 +743,15 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.tree-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
 .tree-icon-button:hover {
   color: var(--accent);
 }
@@ -675,9 +763,9 @@ button:disabled {
 }
 
 .files-browser-shell {
-  border-top: 1px solid var(--border);
+  border-top: none;
   border-bottom: 1px solid var(--border);
-  padding: 12px 0;
+  padding: 0;
 }
 
 .file-actions {
@@ -811,6 +899,11 @@ button:disabled {
   flex-direction: column;
   gap: 16px;
   max-width: 420px;
+}
+
+.settings-panel .danger-button {
+  align-self: flex-start;
+  width: auto;
 }
 
 .settings-status {

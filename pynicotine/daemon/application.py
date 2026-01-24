@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import sys
 import threading
 import time
@@ -76,7 +77,14 @@ class Application:
 
         try:
             app = create_app(self._state)
-            uv_config = uvicorn.Config(app, host=host, port=port, log_level="warning")
+            reload_enabled = os.environ.get("WEB_RELOAD", "").lower() in {"1", "true", "yes", "on"}
+            uv_config = uvicorn.Config(
+                app,
+                host=host,
+                port=port,
+                log_level="warning",
+                reload=reload_enabled
+            )
             self._web_server = uvicorn.Server(uv_config)
         except Exception as error:
             log.add("Failed to start daemon web UI on %s:%s: %s", (host, port, error))

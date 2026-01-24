@@ -1,9 +1,12 @@
 # SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import hmac
 import mimetypes
 import os
 import re
+import secrets
+import time
 
 from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -14,9 +17,54 @@ from pynicotine.config import config
 class DaemonAPI:
     def __init__(self, state):
         self.state = state
+        self._sessions = {}
+        self._session_cookie = "nicotine_session"
+        self._session_ttl = 60 * 60 * 12
 
     def create_app(self):
         app = FastAPI()
+
+        @app.middleware("http")
+        async def require_auth(request: Request, call_next):
+            path = request.url.path
+            if path.startswith("/auth/") or path in {"/openapi.json", "/docs", "/docs/oauth2-redirect"}:
+                return await call_next(request)
+            if not self._is_authenticated(request):
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            return await call_next(request)
+
+        @app.post("/auth/login")
+        def login(response: Response, username: str = Form(""), password: str = Form("")):
+            config_user, config_pass = self._get_config_credentials()
+            if not config_user or not config_pass:
+                raise HTTPException(status_code=503, detail="Authentication not configured")
+            if not self._credentials_match(username, password, config_user, config_pass):
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+            token = self._create_session(config_user)
+            response.set_cookie(
+                self._session_cookie,
+                token,
+                httponly=True,
+                samesite="lax",
+                max_age=self._session_ttl
+            )
+            return {"authenticated": True, "username": config_user}
+
+        @app.post("/auth/logout")
+        def logout(request: Request, response: Response):
+            token = request.cookies.get(self._session_cookie)
+            if token:
+                self._sessions.pop(token, None)
+            response.delete_cookie(self._session_cookie)
+            response.status_code = 204
+            return response
+
+        @app.get("/auth/me")
+        def auth_me(request: Request):
+            session = self._get_session(request)
+            if not session:
+                return JSONResponse({"authenticated": False})
+            return JSONResponse({"authenticated": True, "username": session["username"]})
 
         @app.get("/status.json")
         def status():
@@ -205,6 +253,39 @@ class DaemonAPI:
 
         return app
 
+    @staticmethod
+    def _credentials_match(username, password, config_user, config_pass):
+        return hmac.compare_digest(username, config_user) and hmac.compare_digest(password, config_pass)
+
+    @staticmethod
+    def _get_config_credentials():
+        username = config.sections["server"].get("login") or ""
+        password = config.sections["server"].get("passw") or ""
+        return username, password
+
+    def _create_session(self, username):
+        token = secrets.token_urlsafe(32)
+        self._sessions[token] = {
+            "username": username,
+            "expires_at": time.time() + self._session_ttl
+        }
+        return token
+
+    def _get_session(self, request: Request):
+        token = request.cookies.get(self._session_cookie)
+        if not token:
+            return None
+        session = self._sessions.get(token)
+        if not session:
+            return None
+        if session["expires_at"] <= time.time():
+            self._sessions.pop(token, None)
+            return None
+        return session
+
+    def _is_authenticated(self, request: Request):
+        return self._get_session(request) is not None
+
     def _get_media_roots(self):
         roots = []
         download_dir = config.sections["transfers"].get("downloaddir")
@@ -381,7 +462,7 @@ class DaemonAPI:
             if not share_path:
                 continue
 
-            share_label = share_name or share_path
+            share_label = (share_name or share_path).replace("_", "/")
             share_node = self._build_files_node(
                 share_label,
                 share_path,
@@ -403,6 +484,7 @@ class DaemonAPI:
         if shared_root["children"]:
             root["children"].append(shared_root)
         return root
+
 
 
 def create_app(state):

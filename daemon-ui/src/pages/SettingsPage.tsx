@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import DirectoriesModal from "../components/DirectoriesModal";
+import { useAuth } from "../state/auth";
 
 interface StatusSnapshot {
   username?: string;
@@ -11,6 +13,8 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<StatusSnapshot>({});
   const [isConnected, setIsConnected] = useState(false);
   const hasConnectedRef = useRef(false);
+  const [showModal, setShowModal] = useState(false);
+  const { logout } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -92,7 +96,15 @@ export default function SettingsPage() {
             tabIndex={-1}
           />
         </div>
+        <button type="button" className="ghost-button" onClick={() => setShowModal(true)}>
+          Configure directories
+        </button>
+        <button type="button" className="danger-button" onClick={logout}>
+          Log out
+        </button>
       </div>
+
+      <DirectoriesModal open={showModal} onClose={() => setShowModal(false)} />
     </div>
   );
 }

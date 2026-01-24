@@ -1,6 +1,7 @@
-import { FileText, Folder, FolderOpen, Music2, Play, Trash2, X } from "lucide-react";
+import { FileText, Folder, FolderOpen, Music2, Play, Settings, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
+import DirectoriesModal from "../components/DirectoriesModal";
 import SearchBar from "../components/SearchBar";
 import { useFooter } from "../state/footer";
 import { Track, usePlayer } from "../state/player";
@@ -19,15 +20,19 @@ interface FileNode {
     node,
     selectedId,
     onSelect,
+    expandedState,
+    onToggle,
     depth = 0
   }: {
     node: FileNode;
     selectedId: string | null;
     onSelect: (node: FileNode) => void;
+    expandedState: Record<string, boolean>;
+    onToggle: (node: FileNode) => void;
     depth?: number;
   }) {
-  const [expanded, setExpanded] = useState(true);
   const isDir = node.type === "dir";
+  const expanded = isDir ? expandedState[node.id] ?? true : false;
   const isSelected = selectedId === node.id;
   const icon =
     node.type === "dir"
@@ -54,19 +59,21 @@ interface FileNode {
             onSelect(node);
           }}
         >
-        <button
-          type="button"
-          className="tree-icon-button"
-          onClick={(event) => {
-            event.stopPropagation();
-            if (isDir) {
-              setExpanded((prev) => !prev);
-            }
-          }}
-          aria-label={expanded ? "Collapse folder" : "Expand folder"}
-        >
-          {icon}
-        </button>
+        {isDir ? (
+          <button
+            type="button"
+            className="tree-icon-button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggle(node);
+            }}
+            aria-label={expanded ? "Collapse folder" : "Expand folder"}
+          >
+            {icon}
+          </button>
+        ) : (
+          <span className="tree-icon">{icon}</span>
+        )}
         <span className="tree-label">{node.name}</span>
         {displaySize && <span className="tree-meta">{displaySize}</span>}
       </div>
@@ -78,6 +85,8 @@ interface FileNode {
               node={child}
               selectedId={selectedId}
               onSelect={onSelect}
+              expandedState={expandedState}
+              onToggle={onToggle}
               depth={depth + 1}
             />
           ))}
@@ -107,12 +116,35 @@ export default function FilesPage() {
   const [showModal, setShowModal] = useState(false);
   const [tree, setTree] = useState<FileNode[]>([]);
   const [selectedNode, setSelectedNode] = useState<FileNode | null>(null);
+  const [expandedState, setExpandedState] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = window.localStorage.getItem("filesTreeExpanded");
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, boolean>;
+      }
+    } catch {
+      // Ignore invalid storage.
+    }
+    return {};
+  });
   const [showRename, setShowRename] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   const { playTrack, enqueue } = usePlayer();
   const { setContent } = useFooter();
   const { addToast } = useToast();
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("filesTreeExpanded", JSON.stringify(expandedState));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [expandedState]);
 
   useEffect(() => {
     let active = true;
@@ -387,14 +419,12 @@ export default function FilesPage() {
   }, [footerContent, setContent]);
 
   return (
-    <div className="page">
+    <div className="page files-page">
       <header className="page-header">
         <div>
           <h1>Files</h1>
+          <p className="page-subtitle">Browse and manage shared and downloaded files.</p>
         </div>
-        <button type="button" className="ghost-button" onClick={() => setShowModal(true)}>
-          Configure directories
-        </button>
       </header>
 
       <SearchBar
@@ -402,12 +432,19 @@ export default function FilesPage() {
         placeholder="Search files"
         onChange={setQuery}
         onSubmit={() => {}}
+        extraAction={
+          <button
+            type="button"
+            className="icon-button ghost-button"
+            aria-label="Configure directories"
+            onClick={() => setShowModal(true)}
+          >
+            <Settings size={16} strokeWidth={1.6} />
+          </button>
+        }
       />
 
       <section className="section">
-        <div className="section-header">
-          <h2>File Browser</h2>
-        </div>
         <div
           className="files-browser-shell"
           onClick={() => setSelectedNode(null)}
@@ -425,6 +462,19 @@ export default function FilesPage() {
                   onSelect={(selected) => {
                     setSelectedNode(selected);
                   }}
+                  expandedState={expandedState}
+                  onToggle={(selected) => {
+                    if (selected.type !== "dir") {
+                      return;
+                    }
+                    setExpandedState((prev) => {
+                      const isExpanded = prev[selected.id] ?? true;
+                      return {
+                        ...prev,
+                        [selected.id]: !isExpanded
+                      };
+                    });
+                  }}
                 />
               ))
             )}
@@ -432,57 +482,7 @@ export default function FilesPage() {
         </div>
       </section>
 
-      {showModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Directories</h2>
-              <button
-                type="button"
-                className="ghost-button icon-button"
-                onClick={() => setShowModal(false)}
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={1.6} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="modal-section">
-                <label className="field-label">Download directory</label>
-                <div className="field-row">
-                  <input type="text" defaultValue="/mnt/media/downloads" />
-                  <button type="button" disabled>
-                    Change
-                  </button>
-                </div>
-              </div>
-              <div className="modal-section">
-                <label className="field-label">Shared directories</label>
-                <div className="field-row">
-                  <input type="text" placeholder="/mnt/media/music" />
-                  <button type="button" disabled>
-                    Add
-                  </button>
-                </div>
-                <div className="modal-list">
-                  <div className="modal-list-item">
-                    /mnt/media/music
-                    <button type="button" className="ghost-button" disabled>
-                      Remove
-                    </button>
-                  </div>
-                  <div className="modal-list-item">
-                    /mnt/media/ambient
-                    <button type="button" className="ghost-button" disabled>
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DirectoriesModal open={showModal} onClose={() => setShowModal(false)} />
 
       {showRename && selectedNode && (
         <div className="modal-overlay" role="dialog" aria-modal="true">

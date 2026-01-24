@@ -1,5 +1,5 @@
 import { Search, X } from "lucide-react";
-import { FormEvent } from "react";
+import { FormEvent, ReactNode } from "react";
 
 interface SearchBarProps {
   value: string;
@@ -8,6 +8,7 @@ interface SearchBarProps {
   onSubmit: () => void;
   onClear?: () => void;
   disabled?: boolean;
+  extraAction?: ReactNode;
 }
 
 export default function SearchBar({
@@ -16,7 +17,8 @@ export default function SearchBar({
   onChange,
   onSubmit,
   onClear,
-  disabled = false
+  disabled = false,
+  extraAction
 }: SearchBarProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -54,6 +56,7 @@ export default function SearchBar({
       <button type="submit" className="icon-button" aria-label="Search" disabled={disabled}>
         <Search size={16} strokeWidth={1.6} />
       </button>
+      {extraAction}
     </form>
   );
 }

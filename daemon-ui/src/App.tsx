@@ -1,16 +1,29 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
+import RequireAuth from "./components/RequireAuth";
 import AboutPage from "./pages/AboutPage";
 import ChatPage from "./pages/ChatPage";
 import DownloadsPage from "./pages/DownloadsPage";
 import FilesPage from "./pages/FilesPage";
+import LoginPage from "./pages/LoginPage";
 import SearchPage from "./pages/SearchPage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import SettingsPage from "./pages/SettingsPage";
 import UploadsPage from "./pages/UploadsPage";
+import { AuthProvider } from "./state/auth";
 import { FooterProvider } from "./state/footer";
 import { PlayerProvider } from "./state/player";
 import { ToastProvider } from "./state/toast";
+
+function ProtectedLayout() {
+  return (
+    <RequireAuth>
+      <AppLayout>
+        <Outlet />
+      </AppLayout>
+    </RequireAuth>
+  );
+}
 
 export default function App() {
   return (
@@ -18,20 +31,23 @@ export default function App() {
       <PlayerProvider>
         <FooterProvider>
           <BrowserRouter>
-            <AppLayout>
+            <AuthProvider>
               <Routes>
-                <Route path="/" element={<Navigate to="/search" replace />} />
-                <Route path="/search" element={<SearchPage />} />
-                <Route path="/search/:term" element={<SearchResultsPage />} />
-                <Route path="/downloads" element={<DownloadsPage />} />
-                <Route path="/files" element={<FilesPage />} />
-                <Route path="/uploads" element={<UploadsPage />} />
-                <Route path="/chat" element={<ChatPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/about" element={<AboutPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route element={<ProtectedLayout />}>
+                  <Route path="/" element={<Navigate to="/search" replace />} />
+                  <Route path="/search" element={<SearchPage />} />
+                  <Route path="/search/:term" element={<SearchResultsPage />} />
+                  <Route path="/downloads" element={<DownloadsPage />} />
+                  <Route path="/files" element={<FilesPage />} />
+                  <Route path="/uploads" element={<UploadsPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                </Route>
                 <Route path="*" element={<Navigate to="/search" replace />} />
               </Routes>
-            </AppLayout>
+            </AuthProvider>
           </BrowserRouter>
         </FooterProvider>
       </PlayerProvider>

@@ -4,15 +4,15 @@ export default function AboutPage() {
       <header className="page-header">
         <div>
           <h1>About</h1>
-          <p className="page-subtitle">Mseek is a control plane for Soulseek servers.</p>
+          <p className="page-subtitle">Mseek is a Soulseek client you run from a browser.</p>
         </div>
       </header>
 
       <div className="panel">
         <p>
-          Mseek provides a modern interface for Nicotine+ running on headless servers. It focuses on
-          search, downloads, library management, and playback while keeping your transfers running in
-          the background.
+          It gives you remote access to your media collection and lets you download Soulseek files
+          straight to your home media server. It provides a web UI when a desktop environment isn’t
+          available.
         </p>
       </div>
     </div>
