@@ -353,6 +353,9 @@ class Plugin(BasePlugin):
         self.send_message("/me " + args)  # /me is sent as plain text
 
     def now_command(self, _args, **_unused):
+        if self.core.now_playing is None:
+            self.output(_("Now playing is disabled."))
+            return
         self.core.now_playing.display_now_playing(callback=self.send_message)
 
     # Chat Rooms #

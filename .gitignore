@@ -43,3 +43,4 @@ build-aux/windows/build/
 
 # Ignore portable files
 portable/
+.venv

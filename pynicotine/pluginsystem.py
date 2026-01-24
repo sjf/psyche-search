@@ -408,6 +408,7 @@ class PluginHandler:
         }
         self._load_now_playing_sender = (
             not isolated_mode
+            and "now_playing" in core.enabled_components
             and sys.platform not in {"win32", "darwin"}
             and "SNAP_NAME" not in os.environ
         )
@@ -666,6 +667,9 @@ class PluginHandler:
                     "name": plugin_name,
                     "characters": "="
                 })
+            return False
+        if plugin_name in {"now_playing_sender", "now_playing_search"} and core.now_playing is None:
+            log.add_debug("Plugin '%s' requires now playing, skipping load", plugin_name)
             return False
 
         if plugin_name in self.enabled_plugins:

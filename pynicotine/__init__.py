@@ -99,6 +99,9 @@ def check_arguments():
     core.cli_listen_port = args.port
     core.cli_rescanning = args.rescan
 
+    if not args.headless and not args.daemon and not args.rescan:
+        args.daemon = True
+
     return args.headless, args.daemon, args.hidden, args.ci_mode, args.isolated, args.rescan, multi_instance
 
 
@@ -201,6 +204,10 @@ def run():
         print(error)
         return 1
 
+    disabled_components = None
+    if headless or daemon:
+        disabled_components = {"now_playing"}
+
     if daemon:
         enabled_components = {
             "error_handler", "signal_handler", "portmapper", "network_thread", "shares", "users",
@@ -215,7 +222,8 @@ def run():
 
     core.init_components(
         enabled_components=enabled_components,
-        isolated_mode=isolated_mode
+        isolated_mode=isolated_mode,
+        disabled_components=disabled_components
     )
 
     # Dump tracebacks for C modules (in addition to pure Python code)

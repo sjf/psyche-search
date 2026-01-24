@@ -51,7 +51,7 @@ class Core:
 
         self.enabled_components = set()
 
-    def init_components(self, enabled_components=None, isolated_mode=False):
+    def init_components(self, enabled_components=None, isolated_mode=False, disabled_components=None):
 
         # Enable all components by default
         if enabled_components is None:
@@ -61,6 +61,8 @@ class Core:
                 "search", "downloads", "uploads", "interests", "userbrowse", "userinfo", "buddies",
                 "chatrooms", "privatechat", "pluginhandler"
             }
+        if disabled_components:
+            enabled_components -= disabled_components
 
         self.enabled_components = enabled_components
 
