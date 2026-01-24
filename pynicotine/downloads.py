@@ -779,7 +779,9 @@ class Downloads(Transfers):
             # Duplicate download found, stop here
             return
 
-        transfer = Transfer(username, virtual_path, folder_path, size, file_attributes, TransferStatus.PAUSED)
+        transfer = Transfer(
+            username, virtual_path, folder_path, size, file_attributes, TransferStatus.PAUSED, queued_at=time.time()
+        )
 
         self._append_transfer(transfer)
 

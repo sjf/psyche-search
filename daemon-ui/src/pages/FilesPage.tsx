@@ -1,7 +1,9 @@
-import { FileText, Folder, FolderOpen, Music2, Play, Settings, Trash2, X } from "lucide-react";
+import { FileText, Folder, FolderOpen, Music2, Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
+import FileActionBar from "../components/FileActionBar";
 import DirectoriesModal from "../components/DirectoriesModal";
+import Modal from "../components/Modal";
 import SearchBar from "../components/SearchBar";
 import { useFooter } from "../state/footer";
 import { Track, usePlayer } from "../state/player";
@@ -116,6 +118,8 @@ export default function FilesPage() {
   const [showModal, setShowModal] = useState(false);
   const [tree, setTree] = useState<FileNode[]>([]);
   const [selectedNode, setSelectedNode] = useState<FileNode | null>(null);
+  const [downloadDir, setDownloadDir] = useState("");
+  const [sharedDirs, setSharedDirs] = useState<string[]>([]);
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>(() => {
     try {
       const raw = window.localStorage.getItem("filesTreeExpanded");
@@ -166,9 +170,21 @@ export default function FilesPage() {
         }
         const treeData = data?.tree?.children || [];
         setTree(treeData);
+        const downloadsNode = treeData.find(
+          (node: FileNode) => node.type === "dir" && node.id !== "shared" && node.path
+        );
+        setDownloadDir(downloadsNode?.path ? String(downloadsNode.path) : "");
+        const sharedNode = treeData.find((node: FileNode) => node.id === "shared");
+        const sharedPaths =
+          sharedNode?.children
+            ?.map((node: FileNode) => (node.path ? String(node.path) : null))
+            .filter((value: string | null): value is string => Boolean(value)) || [];
+        setSharedDirs(sharedPaths);
       } catch {
         if (active) {
           setTree([]);
+          setDownloadDir("");
+          setSharedDirs([]);
         }
       }
     };
@@ -377,39 +393,21 @@ export default function FilesPage() {
     const fullPath = selectedNode.path ? String(selectedNode.path) : selectedNode.name;
     const pathParts = fullPath.split(/[/\\]/);
     const parentDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : "";
-    const fileLabel = parentDir ? `${parentDir}/${selectedNode.name}` : selectedNode.name;
+    const fileLabel = selectedNode.name;
+    const filePath = parentDir ? `${parentDir}/${selectedNode.name}` : selectedNode.name;
     return (
-      <div className="file-actions">
-        <div className="file-actions-info">
-          <span className="file-actions-title">{fileLabel}</span>
-        </div>
-        <div className="file-actions-buttons">
-          <button type="button" className="outline-button" onClick={handlePlay} aria-label="Play">
-            <Play size={16} strokeWidth={1.6} />
-          </button>
-          <button type="button" className="outline-button" onClick={handleQueue}>
-            Add to queue
-          </button>
-          <button
-            type="button"
-            className="ghost-button"
-            onClick={() => {
-              setRenameValue(selectedNode.name);
-              setShowRename(true);
-            }}
-          >
-            Rename
-          </button>
-          <button
-            type="button"
-            className="icon-button danger-button"
-            onClick={() => setShowDelete(true)}
-            aria-label="Delete"
-          >
-            <Trash2 size={16} strokeWidth={1.6} />
-          </button>
-        </div>
-      </div>
+      <FileActionBar
+        fileName={fileLabel}
+        filePath={filePath}
+        mediaPath={selectedNode.path ? String(selectedNode.path) : undefined}
+        onPlay={handlePlay}
+        onQueue={handleQueue}
+        onRename={() => {
+          setRenameValue(selectedNode.name);
+          setShowRename(true);
+        }}
+        onDelete={() => setShowDelete(true)}
+      />
     );
   }, [handlePlay, handleQueue, selectedNode]);
 
@@ -482,71 +480,54 @@ export default function FilesPage() {
         </div>
       </section>
 
-      <DirectoriesModal open={showModal} onClose={() => setShowModal(false)} />
+      <DirectoriesModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        downloadDir={downloadDir}
+        sharedDirs={sharedDirs}
+      />
 
-      {showRename && selectedNode && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Rename {selectedNode.type === "dir" ? "folder" : "file"}</h2>
-              <button
-                type="button"
-                className="ghost-button icon-button"
-                onClick={() => setShowRename(false)}
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={1.6} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(event) => setRenameValue(event.target.value)}
-              />
-              <div className="row-actions">
-                <button type="button" onClick={handleRename}>
-                  Save
-                </button>
-                <button type="button" className="ghost-button" onClick={() => setShowRename(false)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showRename && Boolean(selectedNode)}
+        title={`Rename ${selectedNode?.type === "dir" ? "folder" : "file"}`}
+        onClose={() => setShowRename(false)}
+        footer={
+          <>
+            <button type="button" onClick={handleRename}>
+              Save
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setShowRename(false)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        <input
+          type="text"
+          value={renameValue}
+          onChange={(event) => setRenameValue(event.target.value)}
+        />
+      </Modal>
 
-      {showDelete && selectedNode && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Delete file</h2>
-              <button
-                type="button"
-                className="ghost-button icon-button"
-                onClick={() => setShowDelete(false)}
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={1.6} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>
-                Are you sure you want to delete <strong>{selectedNode.name}</strong>?
-              </p>
-              <div className="row-actions">
-                <button type="button" className="danger-button" onClick={handleDelete}>
-                  Delete
-                </button>
-                <button type="button" className="ghost-button" onClick={() => setShowDelete(false)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showDelete && Boolean(selectedNode)}
+        title="Delete file"
+        onClose={() => setShowDelete(false)}
+        className="modal-delete"
+        footer={
+          <>
+            <button type="button" className="danger-button" onClick={handleDelete}>
+              Delete
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setShowDelete(false)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        <div className="mono">{selectedNode?.path || selectedNode?.name}</div>
+        <p>Are you sure you want to delete this file?</p>
+      </Modal>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "../api";
 import DirectoriesModal from "../components/DirectoriesModal";
 import { useAuth } from "../state/auth";
 
@@ -9,11 +10,18 @@ interface StatusSnapshot {
   portmap_info?: string;
 }
 
+interface DirectoryConfig {
+  download_dir?: string;
+  shared_dirs?: string[];
+}
+
 export default function SettingsPage() {
   const [status, setStatus] = useState<StatusSnapshot>({});
   const [isConnected, setIsConnected] = useState(false);
   const hasConnectedRef = useRef(false);
   const [showModal, setShowModal] = useState(false);
+  const [downloadDir, setDownloadDir] = useState("");
+  const [sharedDirs, setSharedDirs] = useState<string[]>([]);
   const { logout } = useAuth();
 
   useEffect(() => {
@@ -51,6 +59,36 @@ export default function SettingsPage() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showModal) {
+      return;
+    }
+    let active = true;
+    const loadDirectories = async () => {
+      try {
+        const response = await apiFetch("/config/directories");
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as DirectoryConfig;
+        if (!active) {
+          return;
+        }
+        setDownloadDir(data.download_dir || "");
+        setSharedDirs(Array.isArray(data.shared_dirs) ? data.shared_dirs : []);
+      } catch {
+        if (active) {
+          setDownloadDir("");
+          setSharedDirs([]);
+        }
+      }
+    };
+    loadDirectories();
+    return () => {
+      active = false;
+    };
+  }, [showModal]);
 
   const connectionInfo = status.connection_info || "Server connection status unavailable.";
   const showDisconnectNotice =
@@ -104,7 +142,12 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      <DirectoriesModal open={showModal} onClose={() => setShowModal(false)} />
+      <DirectoriesModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        downloadDir={downloadDir}
+        sharedDirs={sharedDirs}
+      />
     </div>
   );
 }

@@ -1,64 +1,40 @@
-import { X } from "lucide-react";
+import Modal from "./Modal";
 
 interface DirectoriesModalProps {
   open: boolean;
   onClose: () => void;
+  downloadDir?: string;
+  sharedDirs?: string[];
 }
 
-export default function DirectoriesModal({ open, onClose }: DirectoriesModalProps) {
-  if (!open) {
-    return null;
-  }
-
+export default function DirectoriesModal({
+  open,
+  onClose,
+  downloadDir = "",
+  sharedDirs = []
+}: DirectoriesModalProps) {
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal">
-        <div className="modal-header">
-          <h2>Directories</h2>
-          <button
-            type="button"
-            className="ghost-button icon-button"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={18} strokeWidth={1.6} />
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="modal-section">
-            <label className="field-label">Download directory</label>
-            <div className="field-row">
-              <input type="text" defaultValue="/mnt/media/downloads" />
-              <button type="button" disabled>
-                Change
-              </button>
-            </div>
-          </div>
-          <div className="modal-section">
-            <label className="field-label">Shared directories</label>
-            <div className="field-row">
-              <input type="text" placeholder="/mnt/media/music" />
-              <button type="button" disabled>
-                Add
-              </button>
-            </div>
-            <div className="modal-list">
-              <div className="modal-list-item">
-                /mnt/media/music
-                <button type="button" className="ghost-button" disabled>
-                  Remove
-                </button>
-              </div>
-              <div className="modal-list-item">
-                /mnt/media/ambient
-                <button type="button" className="ghost-button" disabled>
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
+    <Modal open={open} title="Directories" onClose={onClose}>
+      <div className="modal-section">
+        <label className="field-label">Download</label>
+        <div className="field-row">
+          <input type="text" value={downloadDir} readOnly disabled />
         </div>
       </div>
-    </div>
+      <div className="modal-section">
+        <label className="field-label">Shared</label>
+        <div className="modal-list">
+          {sharedDirs.length === 0 ? (
+            <div className="modal-list-item muted">No shared folders configured.</div>
+          ) : (
+            sharedDirs.map((dir) => (
+              <div key={dir} className="modal-list-item">
+                <input type="text" value={dir} readOnly disabled />
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }

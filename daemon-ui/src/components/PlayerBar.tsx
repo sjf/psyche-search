@@ -1,5 +1,5 @@
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
-import { useMemo } from "react";
+import { CSSProperties, ReactNode, useMemo } from "react";
 import { usePlayer } from "../state/player";
 import { useFooter } from "../state/footer";
 
@@ -25,19 +25,34 @@ export default function PlayerBar() {
   } = usePlayer();
   const { content } = useFooter();
 
-  const displayTitle = useMemo(() => {
+  const displayTitle = useMemo<ReactNode>(() => {
     if (!currentTrack) {
       return "Nothing playing";
     }
-    if (currentTrack.artist || currentTrack.title) {
-      const artist = currentTrack.artist || "Unknown artist";
-      const title = currentTrack.title || "Unknown track";
-      return `${artist} - ${title}`;
+    const metadataParts = [currentTrack.artist, currentTrack.title].filter(
+      (value): value is string => Boolean(value)
+    );
+    if (metadataParts.length > 0) {
+      const albumText = currentTrack.album
+        ? `${currentTrack.album}${currentTrack.year ? ` (${currentTrack.year})` : ""}`
+        : "";
+      const main = metadataParts.join(" - ");
+      if (!albumText) {
+        return main;
+      }
+      return (
+        <span>
+          {main} - <span className="player-album">{albumText}</span>
+        </span>
+      );
     }
-    return currentTrack.path || currentTrack.title || "Unknown track";
+    const raw = currentTrack.title || currentTrack.path || "";
+    if (raw) {
+      return raw.split(/[/\\]/).pop() || raw;
+    }
+    return "Unknown track";
   }, [currentTrack]);
 
-  const album = currentTrack?.album || "";
   const linkTarget = currentTrack?.path ? `/files?path=${encodeURIComponent(currentTrack.path)}` : "/files";
 
   return (
@@ -47,7 +62,6 @@ export default function PlayerBar() {
         <a className="player-title" href={linkTarget}>
           {displayTitle}
         </a>
-        {album && <div className="player-meta">{album}</div>}
       </div>
       <div className="player-controls-row">
         <div className="player-controls">
@@ -69,6 +83,11 @@ export default function PlayerBar() {
             max={duration || 0}
             value={Math.min(position, duration || 0)}
             onChange={(event) => seek(Number(event.target.value))}
+            style={
+              {
+                "--scrub-fill-stop": duration > 0 ? `${Math.min(100, (position / duration) * 100)}%` : "0%"
+              } as CSSProperties
+            }
           />
           <span className="player-time">{formatTime(duration)}</span>
         </div>

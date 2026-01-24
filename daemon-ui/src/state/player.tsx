@@ -15,6 +15,7 @@ export interface Track {
   title: string;
   artist?: string;
   album?: string;
+  year?: string;
   path?: string;
   src?: string;
 }
@@ -159,6 +160,46 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [addToast, currentTrack?.path]);
+
+  useEffect(() => {
+    if (!currentTrack?.path) {
+      return;
+    }
+    let active = true;
+    const loadMetadata = async () => {
+      try {
+        const metaUrl = `/media/audio-meta?path=${encodeURIComponent(currentTrack.path as string)}`;
+        const response = await fetch(metaUrl);
+        if (!response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as {
+          metadata?: { artist?: string; title?: string; album?: string; year?: string };
+        };
+        if (!active || !payload?.metadata) {
+          return;
+        }
+        setCurrentTrack((prev) => {
+          if (!prev || prev.path !== currentTrack.path) {
+            return prev;
+          }
+          return {
+            ...prev,
+            artist: payload.metadata?.artist || prev.artist,
+            title: payload.metadata?.title || prev.title,
+            album: payload.metadata?.album || prev.album,
+            year: payload.metadata?.year || prev.year
+          };
+        });
+      } catch {
+        // Ignore metadata errors to avoid disrupting playback.
+      }
+    };
+    loadMetadata();
+    return () => {
+      active = false;
+    };
+  }, [currentTrack?.path]);
 
   const play = useCallback(() => {
     const audio = audioRef.current;

@@ -12,6 +12,8 @@ from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from pynicotine.config import config
+from pynicotine.external.tinytag import TinyTag
+from pynicotine.utils import encode_path
 
 
 class DaemonAPI:
@@ -85,6 +87,22 @@ class DaemonAPI:
                         display_path = "\\".join(parts[1:])
                 item["path"] = display_path
             return JSONResponse(downloads)
+
+        @app.get("/config/directories")
+        def directories():
+            download_dir = config.sections["transfers"].get("downloaddir") or ""
+            shared_dirs = []
+            for share in config.sections["transfers"].get("shared", []):
+                if isinstance(share, (list, tuple)) and len(share) >= 2:
+                    shared_dirs.append(str(share[1]))
+                elif isinstance(share, dict):
+                    share_path = share.get("path")
+                    if share_path:
+                        shared_dirs.append(str(share_path))
+            return JSONResponse({
+                "download_dir": str(download_dir) if download_dir else "",
+                "shared_dirs": shared_dirs
+            })
 
         @app.post("/download")
         def download(user: str = Form(""), path: str = Form(""), size: str = Form("0")):
@@ -184,6 +202,64 @@ class DaemonAPI:
                 "album": None,
                 "size": os.path.getsize(media_path),
                 "content_type": content_type or "application/octet-stream"
+            })
+
+        @app.get("/media/audio-meta")
+        def media_audio_meta(path: str):
+            media_path = self._resolve_media_path(path)
+            if not media_path:
+                raise HTTPException(status_code=403, detail="Path not allowed")
+            if not os.path.isfile(media_path):
+                raise HTTPException(status_code=404, detail="File not found")
+            if not TinyTag.is_supported(media_path):
+                raise HTTPException(status_code=415, detail="Unsupported media type")
+
+            try:
+                with open(encode_path(media_path), "rb") as file_handle:
+                    tag = TinyTag.get(
+                        file_obj=file_handle,
+                        filename=media_path,
+                        tags=True,
+                        duration=True,
+                        image=False
+                    )
+            except Exception as error:
+                raise HTTPException(status_code=500, detail=str(error)) from error
+
+            def to_int(value):
+                if value is None:
+                    return None
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return None
+
+            content_type, _encoding = mimetypes.guess_type(media_path)
+            return JSONResponse({
+                "path": media_path,
+                "filename": os.path.basename(media_path),
+                "size": os.path.getsize(media_path),
+                "content_type": content_type or "application/octet-stream",
+                "metadata": {
+                    "title": tag.title,
+                    "artist": tag.artist,
+                    "album": tag.album,
+                    "albumartist": tag.albumartist,
+                    "composer": tag.composer,
+                    "genre": tag.genre,
+                    "year": tag.year,
+                    "comment": tag.comment,
+                    "track": to_int(tag.track),
+                    "track_total": to_int(tag.track_total),
+                    "disc": to_int(tag.disc),
+                    "disc_total": to_int(tag.disc_total),
+                    "duration": tag.duration,
+                    "bitrate": to_int(tag.bitrate),
+                    "samplerate": to_int(tag.samplerate),
+                    "bitdepth": to_int(tag.bitdepth),
+                    "channels": to_int(tag.channels),
+                    "is_vbr": bool(tag.is_vbr)
+                }
             })
 
         @app.post("/files/delete")

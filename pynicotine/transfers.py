@@ -50,6 +50,7 @@ class Transfer:
 
     __slots__ = ("sock", "username", "virtual_path",
                  "folder_path", "token", "size", "file_handle", "start_time",
+                 "queued_at",
                  "current_byte_offset", "last_byte_offset", "transferred_bytes_total",
                  "speed", "avg_speed", "time_elapsed", "time_left", "modifier",
                  "queue_position", "file_attributes", "iterator", "status",
@@ -57,7 +58,7 @@ class Transfer:
                  "is_lowercase_path", "request_timer_id")
 
     def __init__(self, username, virtual_path=None, folder_path=None, size=0, file_attributes=None,
-                 status=None, current_byte_offset=None):
+                 status=None, current_byte_offset=None, queued_at=None):
         self.username = username
         self.virtual_path = virtual_path
         self.folder_path = folder_path
@@ -73,6 +74,7 @@ class Transfer:
         self.modifier = None
         self.request_timer_id = None
         self.start_time = None
+        self.queued_at = queued_at
         self.last_byte_offset = None
         self.transferred_bytes_total = 0
         self.speed = 0
@@ -338,10 +340,16 @@ class Transfers:
             # File attributes
             file_attributes = self._load_file_attributes(num_attributes, transfer_row)
 
+            queued_at = None
+            if num_attributes >= 8:
+                queued_candidate = transfer_row[-1]
+                if isinstance(queued_candidate, (int, float)) and queued_candidate > 0:
+                    queued_at = float(queued_candidate)
+
             yield (
                 Transfer(
                     username, virtual_path, folder_path, size, file_attributes, status,
-                    current_byte_offset
+                    current_byte_offset, queued_at=queued_at
                 )
             )
 
@@ -595,7 +603,7 @@ class Transfers:
         for transfer in self.transfers.values():
             yield [
                 transfer.username, transfer.virtual_path, transfer.folder_path, transfer.status, transfer.size,
-                transfer.current_byte_offset, transfer.file_attributes
+                transfer.current_byte_offset, transfer.file_attributes, transfer.queued_at
             ]
 
     def _save_transfers_callback(self, file_handle):

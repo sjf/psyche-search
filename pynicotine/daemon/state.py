@@ -349,6 +349,8 @@ class DaemonState:
     def _downloads_snapshot_main_thread(self, request_id):
         downloads = []
         for transfer in core.downloads.transfers.values():
+            if transfer.queued_at is None:
+                transfer.queued_at = time.time()
             local_path = None
             if transfer.status == TransferStatus.FINISHED:
                 override = self.download_path_overrides.get(transfer.username + transfer.virtual_path)
@@ -369,7 +371,8 @@ class DaemonState:
                 "size": transfer.size,
                 "offset": transfer.current_byte_offset or 0,
                 "folder": transfer.folder_path or "",
-                "local_path": local_path
+                "local_path": local_path,
+                "queued_at": transfer.queued_at or 0
             })
 
         with self._lock:

@@ -7,7 +7,6 @@ import DownloadsPage from "./pages/DownloadsPage";
 import FilesPage from "./pages/FilesPage";
 import LoginPage from "./pages/LoginPage";
 import SearchPage from "./pages/SearchPage";
-import SearchResultsPage from "./pages/SearchResultsPage";
 import SettingsPage from "./pages/SettingsPage";
 import UploadsPage from "./pages/UploadsPage";
 import { AuthProvider } from "./state/auth";
@@ -37,7 +36,7 @@ export default function App() {
                 <Route element={<ProtectedLayout />}>
                   <Route path="/" element={<Navigate to="/search" replace />} />
                   <Route path="/search" element={<SearchPage />} />
-                  <Route path="/search/:term" element={<SearchResultsPage />} />
+                  <Route path="/search/:term" element={<SearchPage />} />
                   <Route path="/downloads" element={<DownloadsPage />} />
                   <Route path="/files" element={<FilesPage />} />
                   <Route path="/uploads" element={<UploadsPage />} />

@@ -23,9 +23,14 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, '')
       },
       '/media': 'http://127.0.0.1:7007',
+      '/media/audio-meta': 'http://127.0.0.1:7007',
       '/media/meta': 'http://127.0.0.1:7007',
       '/auth': 'http://127.0.0.1:7007',
       '/api/search': {
+        target: 'http://127.0.0.1:7007',
+        rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/api/config': {
         target: 'http://127.0.0.1:7007',
         rewrite: (path) => path.replace(/^\/api/, '')
       }

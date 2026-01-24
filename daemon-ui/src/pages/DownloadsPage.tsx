@@ -1,6 +1,8 @@
-import { Pause, Play, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Pause, Play, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
+import FileActionBar from "../components/FileActionBar";
+import Modal from "../components/Modal";
 import { useFooter } from "../state/footer";
 import { Track, usePlayer } from "../state/player";
 import { useToast } from "../state/toast";
@@ -15,9 +17,10 @@ interface DownloadItem {
   folder: string;
   isFolder?: boolean;
   local_path?: string | null;
+  queued_at?: number;
 }
 
-type SortKey = "user" | "path" | "size" | "progress" | "status";
+type SortKey = "user" | "path" | "size" | "progress" | "status" | "queued_at";
 
 type SortDirection = "asc" | "desc";
 
@@ -52,10 +55,17 @@ function isPaused(status: string) {
   return status.toLowerCase() === "paused";
 }
 
+function formatQueuedAt(timestamp?: number) {
+  if (!timestamp) {
+    return "-";
+  }
+  return new Date(timestamp * 1000).toLocaleString();
+}
+
 export default function DownloadsPage() {
   const [items, setItems] = useState<DownloadItem[]>([]);
-  const [sortKey, setSortKey] = useState<SortKey>("progress");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortKey, setSortKey] = useState<SortKey>("queued_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedItem, setSelectedItem] = useState<DownloadItem | null>(null);
   const [showRename, setShowRename] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -63,32 +73,38 @@ export default function DownloadsPage() {
   const { playTrack, enqueue } = usePlayer();
   const { setContent } = useFooter();
   const { addToast } = useToast();
+  const deletePath = selectedItem
+    ? String(selectedItem.local_path || selectedItem.path || "")
+    : "";
+
+  const refreshDownloads = useCallback(async () => {
+    try {
+      const response = await fetch("/downloads.json");
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as DownloadItem[];
+      setItems(data);
+      setSelectedItem((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const key = prev.user + (prev.virtual_path || prev.path);
+        return data.find((item) => item.user + (item.virtual_path || item.path) === key) || null;
+      });
+    } catch {
+      setItems([]);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      try {
-        const response = await fetch("/downloads.json");
-        if (!response.ok) {
-          return;
-        }
-        const data = (await response.json()) as DownloadItem[];
-        if (active) {
-          setItems(data);
-          setSelectedItem((prev) => {
-            if (!prev) {
-              return prev;
-            }
-            const key = prev.user + (prev.virtual_path || prev.path);
-            return data.find((item) => item.user + (item.virtual_path || item.path) === key) || null;
-          });
-        }
-      } catch {
-        if (active) {
-          setItems([]);
-        }
+      if (!active) {
+        return;
       }
+      await refreshDownloads();
     };
 
     load();
@@ -98,7 +114,7 @@ export default function DownloadsPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [refreshDownloads]);
 
   const groupedItems = useMemo(() => {
     const sorted = [...items].sort((a, b) => {
@@ -114,6 +130,8 @@ export default function DownloadsPage() {
           return (getProgress(a) - getProgress(b)) * direction;
         case "status":
           return a.status.localeCompare(b.status) * direction;
+        case "queued_at":
+          return ((a.queued_at || 0) - (b.queued_at || 0)) * direction;
         default:
           return 0;
       }
@@ -147,6 +165,8 @@ export default function DownloadsPage() {
     }
   };
 
+  const sortArrow = sortDirection === "asc" ? "▲" : "▼";
+
   const requestAction = async (action: "pause" | "resume" | "cancel" | "clear", item: DownloadItem) => {
     const virtualPath = item.virtual_path || item.path;
     if (!item.user || !virtualPath) {
@@ -161,6 +181,7 @@ export default function DownloadsPage() {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
       });
+      await refreshDownloads();
     } catch {
       // Ignore action failures for now.
     }
@@ -320,7 +341,7 @@ export default function DownloadsPage() {
   });
 
   useEffect(() => {
-    if (!selectedItem || !isFinished(selectedItem.status) || !selectedItem.local_path) {
+    if (!selectedItem) {
       setContent(null);
       return;
     }
@@ -328,50 +349,38 @@ export default function DownloadsPage() {
     const pathParts = fullPath.split(/[/\\]/);
     const parentDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : "";
     const fileName = pathParts[pathParts.length - 1] || selectedItem.path;
-    const fileLabel = parentDir ? `${parentDir}/${fileName}` : fileName;
+    const fileLabel = fileName;
+    const filePath = parentDir ? `${parentDir}/${fileName}` : fileName;
+    const finished = isFinished(selectedItem.status);
+    const hasLocalPath = Boolean(selectedItem.local_path);
+    const missingFileNotice = finished && !hasLocalPath ? "File not found on disk" : "";
+    const statusText = finished ? "" : selectedItem.status;
+    const showClear = true;
     setContent(
-      <div className="file-actions">
-        <div className="file-actions-info">
-          <span className="file-actions-title">{fileLabel}</span>
-        </div>
-        <div className="file-actions-buttons">
-          <button
-            type="button"
-            className="outline-button"
-            onClick={handlePlaySelected}
-            aria-label="Play"
-          >
-            <Play size={16} strokeWidth={1.6} />
-          </button>
-          <button
-            type="button"
-            className="outline-button"
-            onClick={handleQueueSelected}
-          >
-            Add to queue
-          </button>
-          <button
-            type="button"
-            className="ghost-button"
-            onClick={() => {
-              setRenameValue(
-                (selectedItem.local_path || selectedItem.path).split(/[/\\]/).pop() || ""
-              );
-              setShowRename(true);
-            }}
-          >
-            Rename
-          </button>
-          <button
-            type="button"
-            className="icon-button danger-button"
-            onClick={() => setShowDelete(true)}
-            aria-label="Delete"
-          >
-            <Trash2 size={16} strokeWidth={1.6} />
-          </button>
-        </div>
-      </div>
+      <FileActionBar
+        fileName={fileLabel}
+        filePath={filePath}
+        mediaPath={selectedItem.local_path ? String(selectedItem.local_path) : undefined}
+        notice={missingFileNotice}
+        statusText={statusText}
+        showClear={showClear}
+        onClear={() => {
+          requestAction("clear", selectedItem);
+        }}
+        onPlay={handlePlaySelected}
+        onQueue={handleQueueSelected}
+        onRename={() => {
+          setRenameValue(
+            (selectedItem.local_path || selectedItem.path).split(/[/\\]/).pop() || ""
+          );
+          setShowRename(true);
+        }}
+        onDelete={() => setShowDelete(true)}
+        disablePlay={!finished || !hasLocalPath}
+        disableQueue={!finished || !hasLocalPath}
+        showRename={finished && hasLocalPath}
+        showDelete={finished && hasLocalPath}
+      />
     );
 
     return () => setContent(null);
@@ -386,45 +395,120 @@ export default function DownloadsPage() {
         </div>
       </header>
 
+      <div className="section-header">
+        <div />
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={handleClearCompleted}
+          disabled={!hasCompleted}
+        >
+          Clear completed
+        </button>
+      </div>
+
       <div className="table-card" onClick={() => setSelectedItem(null)} role="presentation">
         <table>
           <thead>
             <tr>
               <th>
-                <button type="button" className="sortable" onClick={() => requestSort("user")}>
-                  User
-                </button>
+                <div className="table-sort">
+                  <button type="button" className="sortable" onClick={() => requestSort("user")}>
+                    User
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-arrow${sortKey === "user" ? "" : " sort-arrow-hidden"}`}
+                    onClick={() => requestSort("user")}
+                    aria-hidden={sortKey !== "user"}
+                    tabIndex={sortKey === "user" ? 0 : -1}
+                  >
+                    {sortArrow}
+                  </button>
+                </div>
               </th>
               <th>
-                <button type="button" className="sortable" onClick={() => requestSort("path")}>
-                  File
-                </button>
+                <div className="table-sort">
+                  <button type="button" className="sortable" onClick={() => requestSort("path")}>
+                    File
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-arrow${sortKey === "path" ? "" : " sort-arrow-hidden"}`}
+                    onClick={() => requestSort("path")}
+                    aria-hidden={sortKey !== "path"}
+                    tabIndex={sortKey === "path" ? 0 : -1}
+                  >
+                    {sortArrow}
+                  </button>
+                </div>
               </th>
               <th>
-                <button type="button" className="sortable" onClick={() => requestSort("size")}>
-                  Size
-                </button>
+                <div className="table-sort">
+                  <button type="button" className="sortable" onClick={() => requestSort("size")}>
+                    Size
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-arrow${sortKey === "size" ? "" : " sort-arrow-hidden"}`}
+                    onClick={() => requestSort("size")}
+                    aria-hidden={sortKey !== "size"}
+                    tabIndex={sortKey === "size" ? 0 : -1}
+                  >
+                    {sortArrow}
+                  </button>
+                </div>
               </th>
               <th>
-                <button type="button" className="sortable" onClick={() => requestSort("progress")}>
-                  Progress
-                </button>
+                <div className="table-sort">
+                  <button type="button" className="sortable" onClick={() => requestSort("progress")}>
+                    Progress
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-arrow${sortKey === "progress" ? "" : " sort-arrow-hidden"}`}
+                    onClick={() => requestSort("progress")}
+                    aria-hidden={sortKey !== "progress"}
+                    tabIndex={sortKey === "progress" ? 0 : -1}
+                  >
+                    {sortArrow}
+                  </button>
+                </div>
               </th>
               <th>
-                <button type="button" className="sortable" onClick={() => requestSort("status")}>
-                  Status
-                </button>
+                <div className="table-sort">
+                  <button type="button" className="sortable" onClick={() => requestSort("status")}>
+                    Status
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-arrow${sortKey === "status" ? "" : " sort-arrow-hidden"}`}
+                    onClick={() => requestSort("status")}
+                    aria-hidden={sortKey !== "status"}
+                    tabIndex={sortKey === "status" ? 0 : -1}
+                  >
+                    {sortArrow}
+                  </button>
+                </div>
+              </th>
+              <th>
+                <div className="table-sort">
+                  <button type="button" className="sortable" onClick={() => requestSort("queued_at")}>
+                    Added
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-arrow${sortKey === "queued_at" ? "" : " sort-arrow-hidden"}`}
+                    onClick={() => requestSort("queued_at")}
+                    aria-hidden={sortKey !== "queued_at"}
+                    tabIndex={sortKey === "queued_at" ? 0 : -1}
+                  >
+                    {sortArrow}
+                  </button>
+                </div>
               </th>
               <th className="table-actions-header">
-                <button
-                  type="button"
-                  className="icon-button secondary-button"
-                  aria-label="Clear completed downloads"
-                  onClick={handleClearCompleted}
-                  disabled={!hasCompleted}
-                >
-                  <X size={14} strokeWidth={1.6} />
-                </button>
+                <div className="table-actions-spacer" />
               </th>
             </tr>
           </thead>
@@ -434,6 +518,7 @@ export default function DownloadsPage() {
                 <tr key={`${group.key}-group`} className="results-group downloads-group">
                   <td className="downloads-user">{group.user}</td>
                   <td className="downloads-path">{group.folder}</td>
+                  <td></td>
                   <td></td>
                   <td></td>
                   <td></td>
@@ -449,9 +534,7 @@ export default function DownloadsPage() {
                   }`}
                   onClick={(event) => {
                     event.stopPropagation();
-                    if (isFinished(item.status) && item.local_path) {
-                      setSelectedItem(item);
-                    }
+                    setSelectedItem(item);
                   }}
                 >
                   <td className="downloads-user">{group.isFolder ? "" : item.user}</td>
@@ -465,7 +548,8 @@ export default function DownloadsPage() {
                       <span>{getProgress(item)}%</span>
                     </div>
                   </td>
-                    <td>{item.status}</td>
+                    <td><span className="downloads-status">{item.status}</span></td>
+                    <td className="downloads-added">{formatQueuedAt(item.queued_at)}</td>
                     <td>
                       <div className="row-actions">
                         {!isFinished(item.status) && !isPaused(item.status) && (
@@ -478,7 +562,7 @@ export default function DownloadsPage() {
                               requestAction("pause", item);
                             }}
                           >
-                            <Pause size={14} strokeWidth={1.6} />
+                            <Pause size={18} strokeWidth={1.6} />
                           </button>
                         )}
                         {isPaused(item.status) && (
@@ -491,13 +575,14 @@ export default function DownloadsPage() {
                               requestAction("resume", item);
                             }}
                           >
-                            <Play size={14} strokeWidth={1.6} />
+                            <Play size={18} strokeWidth={1.6} />
                           </button>
                         )}
                         <button
                           type="button"
                           className="icon-button secondary-button"
                           aria-label={isFinished(item.status) ? "Clear" : "Cancel"}
+                          title={isFinished(item.status) ? "Clear download" : "Cancel download"}
                           onClick={(event) => {
                             event.stopPropagation();
                             requestAction(isFinished(item.status) ? "clear" : "cancel", item);
@@ -514,7 +599,7 @@ export default function DownloadsPage() {
             })}
             {groupedItems.length === 0 ? (
               <tr>
-                <td colSpan={6} className="empty-cell">
+                <td colSpan={7} className="empty-cell">
                   No downloads yet.
                 </td>
               </tr>
@@ -523,67 +608,47 @@ export default function DownloadsPage() {
         </table>
       </div>
 
-      {showRename && selectedItem && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Rename file</h2>
-              <button
-                type="button"
-                className="ghost-button icon-button"
-                onClick={() => setShowRename(false)}
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={1.6} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(event) => setRenameValue(event.target.value)}
-              />
-              <div className="row-actions">
-                <button type="button" onClick={handleRename}>
-                  Save
-                </button>
-                <button type="button" className="ghost-button" onClick={() => setShowRename(false)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showRename && Boolean(selectedItem)}
+        title="Rename file"
+        onClose={() => setShowRename(false)}
+        footer={
+          <>
+            <button type="button" onClick={handleRename}>
+              Save
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setShowRename(false)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        <input
+          type="text"
+          value={renameValue}
+          onChange={(event) => setRenameValue(event.target.value)}
+        />
+      </Modal>
 
-      {showDelete && selectedItem && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Delete file</h2>
-              <button
-                type="button"
-                className="ghost-button icon-button"
-                onClick={() => setShowDelete(false)}
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={1.6} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>Delete this file from disk?</p>
-              <div className="row-actions">
-                <button type="button" className="danger-button" onClick={handleDelete}>
-                  Delete
-                </button>
-                <button type="button" className="ghost-button" onClick={() => setShowDelete(false)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showDelete && Boolean(selectedItem)}
+        title="Delete file"
+        onClose={() => setShowDelete(false)}
+        className="modal-delete"
+        footer={
+          <>
+            <button type="button" className="danger-button" onClick={handleDelete}>
+              Delete
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setShowDelete(false)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        <div className="mono">{deletePath}</div>
+        <p>Delete this file from disk?</p>
+      </Modal>
     </div>
   );
 }
