@@ -38,7 +38,7 @@ interface PlayerState {
 
 const PlayerContext = createContext<PlayerState | null>(null);
 
-const STORAGE_KEY = "nseek.player";
+const STORAGE_KEY = "mseek.player";
 
 interface StoredPlayerState {
   currentTrack: Track | null;

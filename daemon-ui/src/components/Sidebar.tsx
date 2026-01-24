@@ -14,9 +14,9 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <img className="sidebar-logo" src="/nseek-bird.png" alt="Nseek logo" />
+        <img className="sidebar-logo" src="/nseek-bird.png" alt="Mseek logo" />
         <div className="sidebar-brand">
-          <span className="brand-name">Nseek</span>
+          <span className="brand-name">Mseek</span>
           <span className="brand-tag">control plane</span>
           <StatusIndicator />
         </div>

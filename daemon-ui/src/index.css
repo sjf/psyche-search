@@ -4,7 +4,7 @@
   --panel: transparent;
   --panel-alt: transparent;
   --border: #2a2d36;
-  --text: #d5d8de;
+  --text: #9aa1ad;
   --text-muted: #9aa1ad;
   --text-dim: #6c7482;
   --accent: #c79a14;
@@ -22,7 +22,7 @@
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
+  color: var(--text-muted);
 }
 
 a {
