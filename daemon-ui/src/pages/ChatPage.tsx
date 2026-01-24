@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 
 interface ChatEntry {
   timestamp: number;
@@ -26,7 +27,7 @@ export default function ChatPage() {
 
     const loadChat = async () => {
       try {
-        const response = await fetch("/chat.json");
+        const response = await apiFetch("/api/chat.json");
         if (!response.ok) {
           return;
         }

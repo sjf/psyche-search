@@ -59,7 +59,7 @@ export default function FileActionBar({
     let active = true;
     const loadMetadata = async () => {
       try {
-        const url = `/media/audio-meta?path=${encodeURIComponent(mediaPath)}`;
+        const url = `/api/media/audio-meta?path=${encodeURIComponent(mediaPath)}`;
         const response = await fetch(url);
         if (!response.ok) {
           metadataCache.set(mediaPath, null);

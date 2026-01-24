@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiFetch } from "../api";
 
 interface StatusSnapshot {
   status?: string;
@@ -16,7 +17,7 @@ export default function StatusIndicator() {
 
     const load = async () => {
       try {
-        const response = await fetch("/status.json");
+        const response = await apiFetch("/api/status.json");
         if (!response.ok) {
           return;
         }

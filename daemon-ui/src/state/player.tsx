@@ -129,7 +129,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     let active = true;
     const verify = async () => {
       try {
-        const metaUrl = `/media/meta?path=${encodeURIComponent(currentTrack.path as string)}`;
+        const metaUrl = `/api/media/meta?path=${encodeURIComponent(currentTrack.path as string)}`;
         console.debug("Player meta check", metaUrl);
         const response = await fetch(metaUrl);
         if (!response.ok && active) {
@@ -168,7 +168,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     let active = true;
     const loadMetadata = async () => {
       try {
-        const metaUrl = `/media/audio-meta?path=${encodeURIComponent(currentTrack.path as string)}`;
+        const metaUrl = `/api/media/audio-meta?path=${encodeURIComponent(currentTrack.path as string)}`;
         const response = await fetch(metaUrl);
         if (!response.ok) {
           return;

@@ -79,7 +79,7 @@ export default function DownloadsPage() {
 
   const refreshDownloads = useCallback(async () => {
     try {
-      const response = await fetch("/downloads.json");
+      const response = await apiFetch("/api/downloads.json");
       if (!response.ok) {
         return;
       }
@@ -176,7 +176,7 @@ export default function DownloadsPage() {
     params.set("user", item.user);
     params.set("path", virtualPath);
     try {
-      await apiFetch(`/downloads/${action}`, {
+      await apiFetch(`/api/downloads/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
@@ -198,7 +198,7 @@ export default function DownloadsPage() {
     params.set("download_user", item.user);
     params.set("download_path", item.virtual_path || item.path);
     try {
-      const response = await apiFetch("/files/rename", {
+      const response = await apiFetch("/api/files/rename", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
@@ -225,7 +225,7 @@ export default function DownloadsPage() {
     params.set("download_user", item.user);
     params.set("download_path", item.virtual_path || item.path);
     try {
-      const response = await apiFetch("/files/delete", {
+      const response = await apiFetch("/api/files/delete", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
@@ -242,7 +242,7 @@ export default function DownloadsPage() {
 
   const verifyMediaAccess = async (path: string, failureMessage: string) => {
     try {
-      const response = await fetch(`/media/meta?path=${encodeURIComponent(path)}`);
+      const response = await apiFetch(`/api/media/meta?path=${encodeURIComponent(path)}`);
       if (!response.ok) {
         addToast(failureMessage);
         return false;
@@ -259,7 +259,7 @@ export default function DownloadsPage() {
       return;
     }
     try {
-      await apiFetch("/downloads/clear-completed", { method: "POST" });
+      await apiFetch("/api/downloads/clear-completed", { method: "POST" });
     } catch {
       // Ignore failures for now.
     }
@@ -337,7 +337,7 @@ export default function DownloadsPage() {
     id: item.local_path || item.path,
     title: (item.local_path || item.path).split(/[/\\]/).pop() || item.path,
     path: item.local_path || undefined,
-    src: item.local_path ? `/media?path=${encodeURIComponent(item.local_path)}` : undefined
+    src: item.local_path ? `/api/media?path=${encodeURIComponent(item.local_path)}` : undefined
   });
 
   useEffect(() => {

@@ -29,7 +29,7 @@ export default function SettingsPage() {
 
     const loadStatus = async () => {
       try {
-        const response = await fetch("/status.json");
+      const response = await apiFetch("/api/status.json");
         if (!response.ok) {
           return;
         }
@@ -67,7 +67,7 @@ export default function SettingsPage() {
     let active = true;
     const loadDirectories = async () => {
       try {
-        const response = await apiFetch("/config/directories");
+        const response = await apiFetch("/api/config/directories");
         if (!response.ok) {
           return;
         }

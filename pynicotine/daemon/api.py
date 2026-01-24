@@ -8,8 +8,9 @@ import re
 import secrets
 import time
 
-from fastapi import FastAPI, Form, HTTPException, Request, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, FastAPI, Form, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.staticfiles import StaticFiles
 
 from pynicotine.config import config
 from pynicotine.external.tinytag import TinyTag
@@ -25,13 +26,14 @@ class DaemonAPI:
 
     def create_app(self):
         app = FastAPI()
+        api = APIRouter(prefix="/api")
 
         @app.middleware("http")
         async def require_auth(request: Request, call_next):
             path = request.url.path
             if path.startswith("/auth/") or path in {"/openapi.json", "/docs", "/docs/oauth2-redirect"}:
                 return await call_next(request)
-            if not self._is_authenticated(request):
+            if path.startswith("/api") and not self._is_authenticated(request):
                 return JSONResponse({"detail": "Unauthorized"}, status_code=401)
             return await call_next(request)
 
@@ -68,15 +70,15 @@ class DaemonAPI:
                 return JSONResponse({"authenticated": False})
             return JSONResponse({"authenticated": True, "username": session["username"]})
 
-        @app.get("/status.json")
+        @api.get("/status.json")
         def status():
             return JSONResponse(self.state.snapshot())
 
-        @app.get("/chat.json")
+        @api.get("/chat.json")
         def chat():
             return JSONResponse({"chat": self.state.get_chat_snapshot()})
 
-        @app.get("/downloads.json")
+        @api.get("/downloads.json")
         def downloads():
             downloads = self.state.request_downloads_snapshot()
             for item in downloads:
@@ -88,7 +90,7 @@ class DaemonAPI:
                 item["path"] = display_path
             return JSONResponse(downloads)
 
-        @app.get("/config/directories")
+        @api.get("/config/directories")
         def directories():
             download_dir = config.sections["transfers"].get("downloaddir") or ""
             shared_dirs = []
@@ -104,7 +106,7 @@ class DaemonAPI:
                 "shared_dirs": shared_dirs
             })
 
-        @app.post("/download")
+        @api.post("/download")
         def download(user: str = Form(""), path: str = Form(""), size: str = Form("0")):
             if not user or not path:
                 raise HTTPException(status_code=400, detail="Missing user or path")
@@ -115,12 +117,12 @@ class DaemonAPI:
             self.state.request_download(user, path, size=size_value)
             return Response(status_code=204)
 
-        @app.post("/downloads/clear-completed")
+        @api.post("/downloads/clear-completed")
         def clear_completed_downloads():
             self.state.clear_completed_downloads()
             return Response(status_code=204)
 
-        @app.post("/downloads/{action}")
+        @api.post("/downloads/{action}")
         def downloads_action(
             action: str,
             user: str = Form(""),
@@ -141,14 +143,14 @@ class DaemonAPI:
                 self.state.clear_download(user, path)
             return Response(status_code=204)
 
-        @app.post("/search")
+        @api.post("/search")
         def search(term: str = Form("")):
             if not term:
                 raise HTTPException(status_code=400, detail="Missing search term")
             self.state.ensure_search(term)
             return Response(status_code=204)
 
-        @app.post("/search/remove")
+        @api.post("/search/remove")
         def remove_search(term: str = Form("")):
             if term:
                 self.state.remove_search_term(term)
@@ -157,7 +159,7 @@ class DaemonAPI:
                     self.state.remove_search(token)
             return Response(status_code=204)
 
-        @app.get("/search/{term}/tree.json")
+        @api.get("/search/{term}/tree.json")
         def search_tree(term: str):
             token = self.state.ensure_search(term)
             if token is None:
@@ -167,12 +169,12 @@ class DaemonAPI:
                 return JSONResponse({"status": "empty", "tree": None})
             return JSONResponse({"status": "ready", "tree": tree})
 
-        @app.get("/files/tree.json")
+        @api.get("/files/tree.json")
         def files_tree(search: str = ""):
             data = self._build_files_tree(search)
             return JSONResponse({"status": "ready", "tree": data})
 
-        @app.get("/media")
+        @api.get("/media")
         def media(path: str, request: Request):
             media_path = self._resolve_media_path(path)
             if not media_path:
@@ -181,7 +183,7 @@ class DaemonAPI:
                 raise HTTPException(status_code=404, detail="File not found")
             return self._stream_media(media_path, request)
 
-        @app.get("/media/meta")
+        @api.get("/media/meta")
         def media_meta(path: str):
             media_path = self._resolve_media_path(path)
             if not media_path:
@@ -204,7 +206,7 @@ class DaemonAPI:
                 "content_type": content_type or "application/octet-stream"
             })
 
-        @app.get("/media/audio-meta")
+        @api.get("/media/audio-meta")
         def media_audio_meta(path: str):
             media_path = self._resolve_media_path(path)
             if not media_path:
@@ -262,7 +264,7 @@ class DaemonAPI:
                 }
             })
 
-        @app.post("/files/delete")
+        @api.post("/files/delete")
         def delete_file(
             path: str = Form(""),
             download_user: str = Form(""),
@@ -291,7 +293,7 @@ class DaemonAPI:
                 self.state.clear_download_override(download_user, download_path)
             return Response(status_code=204)
 
-        @app.post("/files/rename")
+        @api.post("/files/rename")
         def rename_file(
             path: str = Form(""),
             name: str = Form(""),
@@ -326,11 +328,30 @@ class DaemonAPI:
                 self.state.set_download_override(download_user, download_path, new_path)
             return Response(status_code=204)
 
+        app.include_router(api)
+
+        web_ui_root = "daemon-ui/dist"
+        assets_dir = os.path.join(web_ui_root, "assets")
+        if os.path.isdir(assets_dir):
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+        @app.get("/")
+        def web_index():
+            return FileResponse(os.path.join(web_ui_root, "index.html"))
+
+        @app.get("/{path:path}")
+        def web_fallback(path: str):
+            candidate = os.path.join(web_ui_root, path)
+            if os.path.isfile(candidate):
+                return FileResponse(candidate)
+            return FileResponse(os.path.join(web_ui_root, "index.html"))
+
         return app
 
     @staticmethod
     def _credentials_match(username, password, config_user, config_pass):
         return hmac.compare_digest(username, config_user) and hmac.compare_digest(password, config_pass)
+
 
     @staticmethod
     def _get_config_credentials():

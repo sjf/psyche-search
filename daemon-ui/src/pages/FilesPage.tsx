@@ -158,7 +158,7 @@ export default function FilesPage() {
       if (searchValue) {
         params.set("search", searchValue);
       }
-      const url = `/files/tree.json${params.toString() ? `?${params.toString()}` : ""}`;
+      const url = `/api/files/tree.json${params.toString() ? `?${params.toString()}` : ""}`;
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -242,7 +242,7 @@ export default function FilesPage() {
     id: node.id,
     title: node.name,
     path: node.path ?? undefined,
-    src: node.path ? `/media?path=${encodeURIComponent(String(node.path))}` : undefined
+    src: node.path ? `/api/media?path=${encodeURIComponent(String(node.path))}` : undefined
   });
 
   const findDirectoryTracks = (
@@ -277,7 +277,7 @@ export default function FilesPage() {
       params.set("path", String(selectedNode.path));
       params.set("name", renameValue.trim());
       try {
-        const response = await apiFetch("/files/rename", {
+      const response = await apiFetch("/api/files/rename", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: params.toString()
@@ -307,7 +307,7 @@ export default function FilesPage() {
       const params = new URLSearchParams();
       params.set("path", String(selectedNode.path));
       try {
-        const response = await apiFetch("/files/delete", {
+      const response = await apiFetch("/api/files/delete", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: params.toString()
@@ -331,7 +331,7 @@ export default function FilesPage() {
 
   const verifyMediaAccess = useCallback(async (path: string, failureMessage: string) => {
     try {
-      const response = await fetch(`/media/meta?path=${encodeURIComponent(path)}`);
+      const response = await apiFetch(`/api/media/meta?path=${encodeURIComponent(path)}`);
       if (!response.ok) {
         addToast(failureMessage);
         return false;
@@ -382,7 +382,7 @@ export default function FilesPage() {
       id: selectedNode.id,
       title: selectedNode.name,
       path: selectedNode.path ?? undefined,
-      src: selectedNode.path ? `/media?path=${encodeURIComponent(String(selectedNode.path))}` : undefined
+      src: selectedNode.path ? `/api/media?path=${encodeURIComponent(String(selectedNode.path))}` : undefined
     });
   }, [addToast, enqueue, selectedNode, verifyMediaAccess]);
 

@@ -98,7 +98,7 @@ export default function SearchResultsPage() {
 
     const loadStatus = async () => {
       try {
-        const response = await fetch("/status.json");
+      const response = await apiFetch("/api/status.json");
         if (!response.ok) {
           return;
         }
@@ -193,7 +193,7 @@ export default function SearchResultsPage() {
         return;
       }
       try {
-        const response = await apiFetch(`/search/${encodeURIComponent(decodedTerm)}/tree.json`);
+        const response = await apiFetch(`/api/search/${encodeURIComponent(decodedTerm)}/tree.json`);
         if (!response.ok) {
           if (active) {
             setStatus("Search results unavailable.");
@@ -302,7 +302,7 @@ export default function SearchResultsPage() {
     params.set("path", path);
     params.set("size", String(size));
     try {
-      const response = await apiFetch("/download", {
+      const response = await apiFetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
@@ -346,7 +346,7 @@ export default function SearchResultsPage() {
     const params = new URLSearchParams();
     params.set("term", trimmed);
     try {
-      await apiFetch("/search", {
+      await apiFetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
