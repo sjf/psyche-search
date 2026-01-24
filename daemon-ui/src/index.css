@@ -308,6 +308,7 @@ a {
 }
 
 
+
 .results-status {
   padding: 10px 0;
   color: var(--text-dim);
@@ -1065,6 +1066,11 @@ button:disabled {
 
 .downloads-group td {
   border-bottom: none;
+}
+
+.downloads-file {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .results-file td {

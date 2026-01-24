@@ -9,7 +9,7 @@ import secrets
 import time
 
 from fastapi import FastAPI, Form, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from pynicotine.config import config
 
@@ -161,8 +161,7 @@ class DaemonAPI:
                 raise HTTPException(status_code=403, detail="Path not allowed")
             if not os.path.isfile(media_path):
                 raise HTTPException(status_code=404, detail="File not found")
-            content_type, _encoding = mimetypes.guess_type(media_path)
-            return FileResponse(media_path, media_type=content_type or "application/octet-stream")
+            return self._stream_media(media_path, request)
 
         @app.get("/media/meta")
         def media_meta(path: str):
@@ -484,6 +483,65 @@ class DaemonAPI:
         if shared_root["children"]:
             root["children"].append(shared_root)
         return root
+
+    @staticmethod
+    def _iter_file(path, start, end, chunk_size=65536):
+        with open(path, "rb") as file_handle:
+            file_handle.seek(start)
+            remaining = end - start + 1
+            while remaining > 0:
+                chunk = file_handle.read(min(chunk_size, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+    def _stream_media(self, media_path, request):
+        file_size = os.path.getsize(media_path)
+        range_header = request.headers.get("range", "")
+        content_type, _encoding = mimetypes.guess_type(media_path)
+        media_type = content_type or "application/octet-stream"
+        headers = {"Accept-Ranges": "bytes"}
+
+        start = 0
+        end = file_size - 1
+        status_code = 200
+
+        if range_header.startswith("bytes="):
+            range_value = range_header.split("=", 1)[1]
+            try:
+                start_text, end_text = range_value.split("-", 1)
+                if start_text:
+                    start = int(start_text)
+                if end_text:
+                    end = int(end_text)
+                else:
+                    end = file_size - 1
+                if not start_text and end_text:
+                    suffix = int(end_text)
+                    start = max(file_size - suffix, 0)
+                    end = file_size - 1
+                if start < 0 or end < start or end >= file_size:
+                    raise ValueError
+                status_code = 206
+            except ValueError:
+                return Response(
+                    status_code=416,
+                    headers={"Content-Range": f"bytes */{file_size}"}
+                )
+
+        if status_code == 206:
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            headers["Content-Length"] = str(end - start + 1)
+        else:
+            headers["Content-Length"] = str(file_size)
+
+        return StreamingResponse(
+            self._iter_file(media_path, start, end),
+            status_code=status_code,
+            media_type=media_type,
+            headers=headers
+        )
 
 
 

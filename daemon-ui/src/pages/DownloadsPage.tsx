@@ -444,7 +444,7 @@ export default function DownloadsPage() {
                 const rows = group.items.map((item, index) => (
                 <tr
                   key={`${group.key}-${item.path}`}
-                  className={`results-file${index === group.items.length - 1 ? " results-file-last" : ""}${
+                  className={`results-file downloads-file${index === group.items.length - 1 ? " results-file-last" : ""}${
                     isFinished(item.status) && item.local_path ? " row-clickable" : ""
                   }`}
                   onClick={(event) => {
