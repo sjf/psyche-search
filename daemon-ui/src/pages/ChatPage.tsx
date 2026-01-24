@@ -27,7 +27,7 @@ export default function ChatPage() {
 
     const loadChat = async () => {
       try {
-        const response = await apiFetch("/api/chat.json");
+        const response = await apiFetch("/api/chat");
         if (!response.ok) {
           return;
         }

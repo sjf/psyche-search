@@ -98,7 +98,7 @@ export default function SearchResultsPage() {
 
     const loadStatus = async () => {
       try {
-      const response = await apiFetch("/api/status.json");
+      const response = await apiFetch("/api/status");
         if (!response.ok) {
           return;
         }

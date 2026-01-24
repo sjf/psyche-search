@@ -70,15 +70,15 @@ class DaemonAPI:
                 return JSONResponse({"authenticated": False})
             return JSONResponse({"authenticated": True, "username": session["username"]})
 
-        @api.get("/status.json")
+        @api.get("/status")
         def status():
             return JSONResponse(self.state.snapshot())
 
-        @api.get("/chat.json")
+        @api.get("/chat")
         def chat():
             return JSONResponse({"chat": self.state.get_chat_snapshot()})
 
-        @api.get("/downloads.json")
+        @api.get("/downloads")
         def downloads():
             downloads = self.state.request_downloads_snapshot()
             for item in downloads:

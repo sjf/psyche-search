@@ -79,7 +79,7 @@ export default function DownloadsPage() {
 
   const refreshDownloads = useCallback(async () => {
     try {
-      const response = await apiFetch("/api/downloads.json");
+      const response = await apiFetch("/api/downloads");
       if (!response.ok) {
         return;
       }

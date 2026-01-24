@@ -17,7 +17,7 @@ export default function StatusIndicator() {
 
     const load = async () => {
       try {
-        const response = await apiFetch("/api/status.json");
+        const response = await apiFetch("/api/status");
         if (!response.ok) {
           return;
         }
