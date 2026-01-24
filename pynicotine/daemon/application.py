@@ -9,9 +9,7 @@ from pynicotine.config import config
 from pynicotine.core import core
 from pynicotine.daemon.state import DaemonState
 from pynicotine.daemon.state import compute_share_counts
-from pynicotine.daemon.web import DaemonRequestHandler
-from pynicotine.daemon.web import TemplateRenderer
-from pynicotine.daemon.web import ThreadingHTTPServer
+from pynicotine.daemon.api import create_app
 from pynicotine.events import events
 from pynicotine.logfacility import log
 
@@ -49,6 +47,8 @@ class Application:
         core.start()
         core.connect()
         if not self._start_web_server():
+            core.quit()
+            events.emit("quit")
             return 1
 
         # Main loop, process events from threads 10 times per second
@@ -69,15 +69,21 @@ class Application:
         port = config.sections["daemon"]["web_port"]
 
         try:
-            self._web_server = ThreadingHTTPServer((host, port), DaemonRequestHandler)
-        except OSError as error:
+            import uvicorn
+        except ModuleNotFoundError as error:
+            log.add("Failed to start daemon web API, uvicorn is missing: %s", (error,))
+            return False
+
+        try:
+            app = create_app(self._state)
+            uv_config = uvicorn.Config(app, host=host, port=port, log_level="warning")
+            self._web_server = uvicorn.Server(uv_config)
+        except Exception as error:
             log.add("Failed to start daemon web UI on %s:%s: %s", (host, port, error))
             return False
 
-        self._web_server.state = self._state
-        self._web_server.renderer = TemplateRenderer()
         self._web_thread = threading.Thread(
-            target=self._web_server.serve_forever,
+            target=self._web_server.run,
             name="DaemonWebServer",
             daemon=True
         )
@@ -89,8 +95,7 @@ class Application:
         if self._web_server is None:
             return
 
-        self._web_server.shutdown()
-        self._web_server.server_close()
+        self._web_server.should_exit = True
         self._web_server = None
 
     def _on_shares_preparing(self):
