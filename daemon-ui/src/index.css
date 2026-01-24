@@ -106,12 +106,13 @@ a {
 }
 
 .sidebar-logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  object-fit: cover;
-  border: 1px solid var(--border);
-  box-shadow: 0 0 18px rgba(244, 192, 27, 0.15);
+  width: 61px;
+  height: 61px;
+  border-radius: 0;
+  object-fit: contain;
+  padding: 1px;
+  border: none;
+  box-shadow: none;
 }
 
 .sidebar-brand {
@@ -174,6 +175,15 @@ a {
 .nav-link:hover {
   color: var(--text-muted);
   background: transparent;
+}
+
+.nav-link:not(.nav-link-active):hover {
+  color: #c0c6d0;
+}
+
+.nav-link-active:hover {
+  color: #1a1a1a;
+  background: var(--accent);
 }
 
 .nav-link-active {
@@ -1312,6 +1322,7 @@ button:disabled {
 .downloads-file .downloads-added {
   font-size: 12px;
   color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .downloads-status {

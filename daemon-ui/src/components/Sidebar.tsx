@@ -14,10 +14,10 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <img className="sidebar-logo" src="/nseek-bird.png" alt="Mseek logo" />
+        <img className="sidebar-logo" src="/logo-small.png" alt="Soulseek Remote logo" />
         <div className="sidebar-brand">
-          <span className="brand-name">Mseek</span>
-          <span className="brand-tag">control plane</span>
+          <span className="brand-name">Soulseek</span>
+          <span className="brand-tag">Remote</span>
           <StatusIndicator />
         </div>
       </div>

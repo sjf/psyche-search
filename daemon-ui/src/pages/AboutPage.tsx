@@ -4,7 +4,7 @@ export default function AboutPage() {
       <header className="page-header">
         <div>
           <h1>About</h1>
-          <p className="page-subtitle">Mseek is a Soulseek client you run from a browser.</p>
+          <p className="page-subtitle">Soulseek Remote is a Soulseek client you run from a browser.</p>
         </div>
       </header>
 
