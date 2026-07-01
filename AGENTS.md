@@ -17,6 +17,16 @@
 - Desktop app (`pseek --desktop`, macOS/Windows via pywebview): see `doc/DESKTOP_APP.md`.
 - Never run servers on the default ports (FastAPI daemon 7007, Vite dev server 5173) — those are reserved for human developers. Always pick alternate ports (e.g. 7017 and 5183) when starting the daemon or front-end.
 
+### Web UI dev servers (alternate ports)
+
+The web UI runs two processes: the daemon and the Vite dev server. Per the note
+above, start both on alternate ports (and check they're free first, e.g.
+`lsof -nP -iTCP:<port> -sTCP:LISTEN`):
+
+- Daemon: `WEB_PORT=<port> .venv/bin/python pseek -d`
+- Vite: `VITE_DAEMON_PORT=<daemon-port> npm run dev -- --port <port> --strictPort`
+  (`VITE_DAEMON_PORT` points Vite's `/api` + `/auth` proxy at your daemon port).
+
 ## Coding Style & Naming Conventions
 
 - Python is the only language for core logic; follow PEP 8 with a 120-character
