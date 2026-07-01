@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
 import NotConnectedNotice from "../components/NotConnectedNotice";
 import SearchBar from "../components/SearchBar";
+import UserBrowsePane from "../components/UserBrowsePane";
 import { useToast } from "../state/toast";
 
 interface SearchEntry {
@@ -95,6 +96,9 @@ export default function SearchPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [statusReady, setStatusReady] = useState(false);
   const [manualClear, setManualClear] = useState(false);
+  const [browse, setBrowse] = useState<{ username: string; focusPath?: string } | null>(null);
+  const prefetchedRef = useRef<Set<string>>(new Set());
+  const hoverTimerRef = useRef<number | null>(null);
   const pollTimer = useRef<number | null>(null);
   const pollDelay = useRef(200);
   const pollAttempts = useRef(0);
@@ -365,6 +369,64 @@ export default function SearchPage() {
     setSortDirection("asc");
   };
 
+  const prefetchUser = (user: string) => {
+    if (!user || prefetchedRef.current.has(user)) {
+      return;
+    }
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current);
+    }
+    hoverTimerRef.current = window.setTimeout(() => {
+      prefetchedRef.current.add(user);
+      fetch(`/api/user/${encodeURIComponent(user)}/prefetch`, { method: "POST" }).catch(() => {});
+    }, 200);
+  };
+
+  const cancelPrefetch = () => {
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  const folderCrumbs = (user: string, folder: string) => {
+    if (!folder || folder === "(root)") {
+      return (
+        <button
+          type="button"
+          className="link-button"
+          title={`Browse ${user}'s files`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setBrowse({ username: user });
+          }}
+        >
+          (root)
+        </button>
+      );
+    }
+    const parts = folder.split(/[\\/]/).filter(Boolean);
+    return parts.map((part, index) => {
+      const sub = parts.slice(0, index + 1).join("\\");
+      return (
+        <span key={sub} className="crumb">
+          {index > 0 ? <span className="crumb-sep">\</span> : null}
+          <button
+            type="button"
+            className="link-button"
+            title={`Browse ${part}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setBrowse({ username: user, focusPath: sub });
+            }}
+          >
+            {part}
+          </button>
+        </span>
+      );
+    });
+  };
+
   const requestDownload = async (user: string, path: string, size: number) => {
     if (!user || !path) {
       addToast("Download failed.", "error");
@@ -407,6 +469,7 @@ export default function SearchPage() {
     if (!trimmed) {
       return;
     }
+    setBrowse(null);
     const params = new URLSearchParams();
     params.set("term", trimmed);
     try {
@@ -441,6 +504,7 @@ export default function SearchPage() {
           setActiveTerm("");
           setRows([]);
           setStatus("");
+          setBrowse(null);
           navigate("/search", { replace: true });
         }}
         disabled={!isConnected}
@@ -451,7 +515,13 @@ export default function SearchPage() {
         </div>
       )}
 
-      {activeTerm ? (
+      {browse ? (
+        <UserBrowsePane
+          username={browse.username}
+          focusPath={browse.focusPath}
+          onClose={() => setBrowse(null)}
+        />
+      ) : activeTerm ? (
         <section className="section">
           <div className="section-header">
             <h2>Search Results</h2>
@@ -522,7 +592,12 @@ export default function SearchPage() {
                   </tr>
                 ) : (
                   groupedResults.flatMap((group) => [
-                    <tr key={`${group.key}-group`} className="results-group">
+                    <tr
+                      key={`${group.key}-group`}
+                      className="results-group"
+                      onMouseEnter={() => prefetchUser(group.user)}
+                      onMouseLeave={cancelPrefetch}
+                    >
                       <td className="mono">
                         <div className="user-status">
                           <span
@@ -531,7 +606,17 @@ export default function SearchPage() {
                             }`}
                             title={(group.freeSlots || 0) > 0 ? "Ready to download" : "Busy (no free slots)"}
                           />
-                          <span>{group.user}</span>
+                          <button
+                            type="button"
+                            className="link-button"
+                            title={`Browse ${group.user}'s files`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setBrowse({ username: group.user });
+                            }}
+                          >
+                            {group.user}
+                          </button>
                         </div>
                       </td>
                       <td className="col-speed">{formatSpeed(group.speed)}</td>
@@ -540,7 +625,7 @@ export default function SearchPage() {
                           <span className="results-icon">
                             <Folder size={14} strokeWidth={1.6} />
                           </span>
-                          <span>{group.folder}</span>
+                          <span className="results-crumbs">{folderCrumbs(group.user, group.folder)}</span>
                         </div>
                       </td>
                       <td />
