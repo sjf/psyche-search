@@ -917,6 +917,12 @@ tr:last-child td {
   color: var(--text);
 }
 
+.results-group td.mono,
+.results-file td.mono {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+}
+
 tbody tr:hover td {
   background: rgba(255, 46, 151, 0.07);
 }
