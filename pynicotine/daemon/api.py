@@ -168,6 +168,18 @@ class DaemonAPI:
                 return JSONResponse({"status": "empty", "tree": None})
             return JSONResponse({"status": "ready", "tree": tree})
 
+        @api.get("/user/{username}/tree.json")
+        def user_tree(username: str):
+            if not username:
+                raise HTTPException(status_code=400, detail="Missing username")
+            return JSONResponse(self.state.get_user_tree_state(username))
+
+        @api.post("/user/{username}/prefetch")
+        def user_prefetch(username: str):
+            if username:
+                self.state.start_user_browse(username)
+            return Response(status_code=204)
+
         @api.get("/files/tree.json")
         def files_tree(search: str = ""):
             data = self._build_files_tree(search)

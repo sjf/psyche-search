@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import json
 import os
 import threading
 import time
@@ -13,15 +14,22 @@ from pynicotine.events import events
 from pynicotine.slskmessages import FileListMessage
 from pynicotine.slskmessages import UserStatus
 from pynicotine.transfers import TransferStatus
+from pynicotine.utils import clean_file
+from pynicotine.utils import encode_path
 from pynicotine.daemon.trees import build_search_tree
 from pynicotine.daemon.trees import build_user_tree
+
+
+USER_TREE_CACHE_TTL = 24 * 60 * 60  # keep a browsed user's listing for at least a day
+USER_BROWSE_TIMEOUT = 45  # give up on an unresponsive user after this many seconds
 
 
 class DaemonState:
     __slots__ = ("_lock", "share_files", "share_folders", "share_status", "chat_lines",
                  "searches", "search_results", "search_terms", "max_search_results",
-                 "pending_requests", "_pending_request_id", "_user_browse_events",
-                 "_user_browse_status", "connection_info", "portmap_info",
+                 "pending_requests", "_pending_request_id",
+                 "_user_browse_status", "_user_browse_progress", "_user_browse_started",
+                 "_user_tree_cache", "connection_info", "portmap_info",
                  "download_path_overrides")
 
     def __init__(self):
@@ -36,8 +44,10 @@ class DaemonState:
         self.max_search_results = 500
         self.pending_requests = {}
         self._pending_request_id = 0
-        self._user_browse_events = {}
         self._user_browse_status = {}
+        self._user_browse_progress = {}
+        self._user_browse_started = {}
+        self._user_tree_cache = {}
         self.connection_info = ""
         self.portmap_info = ""
         self.download_path_overrides = {}
@@ -191,76 +201,146 @@ class DaemonState:
 
         return search, results
 
-    def request_user_tree(self, username, local=False):
-        event = self._get_user_browse_event(username, local)
-        events.invoke_main_thread(self._ensure_user_browse_main_thread, username, local)
-        event.wait(timeout=30)
-        status = self._get_user_browse_status(username, local)
-        if status == "not_found":
-            return {"status": "not_found"}
+    def get_user_tree_state(self, username):
+        """Current browse state for a user, without blocking.
+
+        The frontend polls this quickly. A browse is kicked off on demand and its
+        progress and resulting tree are reported as they become available. A built
+        listing is cached (memory + disk) for at least a day, so repeat browses and
+        prefetches return instantly.
+        """
+        if not username:
+            return {"status": "error", "tree": None}
+
+        now = time.time()
 
         with self._lock:
-            self._pending_request_id += 1
-            request_id = self._pending_request_id
-            pending = {"event": threading.Event(), "tree": None, "status": "loading"}
-            self.pending_requests[request_id] = pending
+            cached = self._user_tree_cache.get(username)
+            if cached and now - cached["cached_at"] < USER_TREE_CACHE_TTL:
+                return {"status": "ready", "tree": cached["tree"], "cached": True}
 
-        events.invoke_main_thread(self._get_user_tree_main_thread, request_id, username, local)
-        pending["event"].wait(timeout=3)
+            status = self._user_browse_status.get(username)
+            if status == "loading":
+                started = self._user_browse_started.get(username, now)
+                if now - started <= USER_BROWSE_TIMEOUT:
+                    return {
+                        "status": "loading",
+                        "tree": None,
+                        "progress": self._progress_payload(self._user_browse_progress.get(username))
+                    }
+                self._user_browse_status[username] = "error"
+                return {"status": "error", "tree": None}
+            if status == "not_found":
+                return {"status": "not_found", "tree": None}
 
+        # No usable in-memory state: try a fresh-enough copy from disk before the network.
+        disk_entry = self._load_cached_tree(username)
+        if disk_entry is not None:
+            with self._lock:
+                self._user_tree_cache[username] = disk_entry
+            return {"status": "ready", "tree": disk_entry["tree"], "cached": True}
+
+        return self.start_user_browse(username)
+
+    def start_user_browse(self, username):
+        """Begin a browse unless one is already running or cached. Safe to fire-and-forget (prefetch)."""
+        if not username:
+            return {"status": "error", "tree": None}
+
+        now = time.time()
         with self._lock:
-            result = self.pending_requests.pop(request_id, None)
+            cached = self._user_tree_cache.get(username)
+            if cached and now - cached["cached_at"] < USER_TREE_CACHE_TTL:
+                return {"status": "ready", "tree": cached["tree"], "cached": True}
 
-        if not result:
-            return {"status": "loading"}
+            if self._user_browse_status.get(username) == "loading":
+                started = self._user_browse_started.get(username, now)
+                if now - started <= USER_BROWSE_TIMEOUT:
+                    return {
+                        "status": "loading",
+                        "tree": None,
+                        "progress": self._progress_payload(self._user_browse_progress.get(username))
+                    }
 
-        return {"status": result["status"], "tree": result.get("tree")}
+            self._user_browse_status[username] = "loading"
+            self._user_browse_started[username] = now
+            self._user_browse_progress.pop(username, None)
 
-    def _ensure_user_browse_main_thread(self, username, local):
-        local_username = core.users.login_username or config.sections["server"]["login"]
-        if local:
-            if not local_username:
-                return
+        events.invoke_main_thread(self._ensure_user_browse_main_thread, username)
+        return {"status": "loading", "tree": None, "progress": None}
 
-            if local_username not in core.userbrowse.users:
-                core.userbrowse.browse_local_shares(new_request=True, switch_page=False)
-            else:
-                core.userbrowse.browse_local_shares(new_request=False, switch_page=False)
-            return
-
+    def _ensure_user_browse_main_thread(self, username):
         if not username:
             return
 
         if username not in core.userbrowse.users:
             core.userbrowse.browse_user(username, new_request=True, switch_page=False)
         else:
+            # Already browsed this session; the folder data is in memory, build the tree now.
             core.userbrowse.browse_user(username, new_request=False, switch_page=False)
+            self.on_user_browse_complete(username)
 
-    def _get_user_tree_main_thread(self, request_id, username, local):
-        local_username = core.users.login_username or config.sections["server"]["login"]
-        if local:
-            if not local_username:
-                status = "error"
-                tree = None
-            else:
-                tree = build_user_tree(local_username, hide_at_root=False)
-                status = "ready" if tree else "loading"
-        else:
-            if not username:
-                status = "error"
-                tree = None
-            else:
-                tree = build_user_tree(username, hide_at_root=True)
-                status = "ready" if tree else "loading"
-
+    def record_user_browse_progress(self, username, position, total):
+        if not username:
+            return
         with self._lock:
-            pending = self.pending_requests.get(request_id)
-            if pending is None:
-                return
+            self._user_browse_progress[username] = (int(position or 0), int(total or 0))
 
-            pending["tree"] = tree
-            pending["status"] = status
-            pending["event"].set()
+    def on_user_browse_complete(self, username):
+        if username:
+            events.invoke_main_thread(self._build_user_tree_main_thread, username)
+
+    def _build_user_tree_main_thread(self, username):
+        tree = build_user_tree(username, hide_at_root=True)
+        if tree is None:
+            tree = {"name": "", "type": "root", "children": []}
+        entry = {"tree": tree, "cached_at": time.time()}
+        with self._lock:
+            self._user_tree_cache[username] = entry
+            self._user_browse_status[username] = "ready"
+            self._user_browse_progress.pop(username, None)
+        self._save_cached_tree(username, entry)
+
+    @staticmethod
+    def _progress_payload(progress):
+        if not progress:
+            return None
+        position, total = progress
+        if not total:
+            return None
+        return {"position": position, "total": total}
+
+    @staticmethod
+    def _user_cache_path(username):
+        cache_dir = os.path.join(config.data_folder_path, "daemon-usercache")
+        return os.path.join(cache_dir, clean_file(username) + ".json")
+
+    def _load_cached_tree(self, username):
+        path = self._user_cache_path(username)
+        try:
+            encoded = encode_path(path)
+            if not os.path.isfile(encoded):
+                return None
+            if time.time() - os.path.getmtime(encoded) >= USER_TREE_CACHE_TTL:
+                return None
+            with open(encoded, "r", encoding="utf-8") as file_handle:
+                data = json.load(file_handle)
+        except (OSError, ValueError):
+            return None
+
+        tree = data.get("tree")
+        if tree is None:
+            return None
+        return {"tree": tree, "cached_at": data.get("cached_at", time.time())}
+
+    def _save_cached_tree(self, username, entry):
+        try:
+            cache_dir = os.path.join(config.data_folder_path, "daemon-usercache")
+            os.makedirs(encode_path(cache_dir), exist_ok=True)
+            with open(encode_path(self._user_cache_path(username)), "w", encoding="utf-8") as file_handle:
+                json.dump({"cached_at": entry["cached_at"], "tree": entry["tree"]}, file_handle, ensure_ascii=False)
+        except OSError:
+            pass
 
     def build_search_tree(self, token):
         with self._lock:
@@ -383,38 +463,12 @@ class DaemonState:
             pending["downloads"] = downloads
             pending["event"].set()
 
-    def _get_user_browse_event(self, username, local):
-        key = self._get_user_browse_key(username, local)
-        with self._lock:
-            event = self._user_browse_events.get(key)
-            if event is None:
-                event = self._user_browse_events[key] = threading.Event()
-            event.clear()
-            self._user_browse_status[key] = "loading"
-        return event
-
-    def _get_user_browse_status(self, username, local):
-        key = self._get_user_browse_key(username, local)
-        with self._lock:
-            return self._user_browse_status.get(key)
-
-    def _get_user_browse_key(self, username, local):
-        local_username = core.users.login_username or config.sections["server"]["login"]
-        return local_username if local else username
-
-    def notify_user_browse(self, username):
-        with self._lock:
-            event = self._user_browse_events.get(username)
-            self._user_browse_status[username] = "ready"
-        if event:
-            event.set()
-
     def notify_user_browse_not_found(self, username):
+        if not username:
+            return
         with self._lock:
-            event = self._user_browse_events.get(username)
             self._user_browse_status[username] = "not_found"
-        if event:
-            event.set()
+            self._user_browse_progress.pop(username, None)
 
     def snapshot(self):
         with self._lock:

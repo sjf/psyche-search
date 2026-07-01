@@ -39,7 +39,7 @@ def _build_tree_from_folder_map(folder_map):
             path_accum = part if not path_accum else f"{path_accum}\\{part}"
             node = node_map.get(path_accum)
             if node is None:
-                node = {"name": part, "type": "dir", "children": []}
+                node = {"id": path_accum, "name": part, "type": "dir", "path": path_accum, "children": []}
                 node_map[path_accum] = node
                 current["children"].append(node)
             current = node
@@ -56,6 +56,7 @@ def _build_tree_from_folder_map(folder_map):
                 full_path = f"{folder_path}\\{basename}"
 
             current["children"].append({
+                "id": full_path,
                 "name": basename,
                 "type": "file",
                 "size": size,
