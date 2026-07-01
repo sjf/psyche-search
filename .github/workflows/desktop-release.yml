@@ -5,7 +5,6 @@ name: Desktop app
 
 on:
   push:
-    branches: [claude/amazing-chandrasekhar-95aaf5]
     tags: ["[0-9]+.*", "v[0-9]+.*"]
   workflow_dispatch:
     inputs:
