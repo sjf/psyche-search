@@ -28,10 +28,10 @@ function ProtectedLayout() {
 export default function App() {
   return (
     <ToastProvider>
-      <PlayerProvider>
-        <FooterProvider>
-          <BrowserRouter>
-            <AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <PlayerProvider>
+            <FooterProvider>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route element={<ProtectedLayout />}>
@@ -48,10 +48,10 @@ export default function App() {
                 </Route>
                 <Route path="*" element={<Navigate to="/search" replace />} />
               </Routes>
-            </AuthProvider>
-          </BrowserRouter>
-        </FooterProvider>
-      </PlayerProvider>
+            </FooterProvider>
+          </PlayerProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </ToastProvider>
   );
 }

@@ -8,6 +8,7 @@ import {
   useRef,
   useState
 } from "react";
+import { useAuth } from "./auth";
 import { useToast } from "./toast";
 
 export interface Track {
@@ -78,6 +79,8 @@ function loadStoredState(): StoredPlayerState {
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const { addToast } = useToast();
+  const { status } = useAuth();
+  const isAuthenticated = status === "authenticated";
   const stored = loadStoredState();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(stored.currentTrack);
   const [queue, setQueue] = useState<Track[]>(stored.queue);
@@ -101,7 +104,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !currentTrack?.src) {
+    if (!audio || !currentTrack?.src || !isAuthenticated) {
       return;
     }
     const desiredSrc = new URL(currentTrack.src, window.location.origin).toString();
@@ -120,10 +123,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setIsPlaying(false);
       });
     }
-  }, [addToast, currentTrack, position, isPlaying]);
+  }, [addToast, currentTrack, position, isPlaying, isAuthenticated]);
 
   useEffect(() => {
-    if (!currentTrack?.path) {
+    if (!currentTrack?.path || !isAuthenticated) {
       return;
     }
     let active = true;
@@ -159,10 +162,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [addToast, currentTrack?.path]);
+  }, [addToast, currentTrack?.path, isAuthenticated]);
 
   useEffect(() => {
-    if (!currentTrack?.path) {
+    if (!currentTrack?.path || !isAuthenticated) {
       return;
     }
     let active = true;
@@ -199,7 +202,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [currentTrack?.path]);
+  }, [currentTrack?.path, isAuthenticated]);
 
   const play = useCallback(() => {
     const audio = audioRef.current;
@@ -345,7 +348,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }}
         onError={() => {
           console.warn("Player audio element error");
-          addToast("Playback failed.");
+          if (isAuthenticated) {
+            addToast("Playback failed.");
+          }
           setIsPlaying(false);
         }}
         onTimeUpdate={(event) => {
