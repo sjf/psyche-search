@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import base64
+import hashlib
 import hmac
 import mimetypes
 import os
@@ -20,9 +22,9 @@ from pynicotine.utils import encode_path
 class DaemonAPI:
     def __init__(self, state):
         self.state = state
-        self._sessions = {}
         self._session_cookie = "nicotine_session"
-        self._session_ttl = 60 * 60 * 12
+        self._session_ttl = 60 * 60 * 24 * 30
+        self._session_secret = None
 
     def create_app(self):
         app = FastAPI()
@@ -55,10 +57,7 @@ class DaemonAPI:
             return {"authenticated": True, "username": config_user}
 
         @app.post("/auth/logout")
-        def logout(request: Request, response: Response):
-            token = request.cookies.get(self._session_cookie)
-            if token:
-                self._sessions.pop(token, None)
+        def logout(response: Response):
             response.delete_cookie(self._session_cookie)
             response.status_code = 204
             return response
@@ -359,25 +358,58 @@ class DaemonAPI:
         password = config.sections["server"].get("passw") or ""
         return username, password
 
+    def _get_session_secret(self):
+        if self._session_secret is not None:
+            return self._session_secret
+
+        secret_path = os.path.join(os.path.dirname(config.config_file_path), "web_session_secret")
+        try:
+            with open(encode_path(secret_path), "rb") as handle:
+                secret = handle.read().strip()
+            if secret:
+                self._session_secret = secret
+                return secret
+        except OSError:
+            pass
+
+        secret = secrets.token_urlsafe(48).encode("ascii")
+        try:
+            os.makedirs(os.path.dirname(secret_path), exist_ok=True)
+            with open(encode_path(secret_path), "wb") as handle:
+                handle.write(secret)
+            os.chmod(encode_path(secret_path), 0o600)
+        except OSError:
+            pass
+
+        self._session_secret = secret
+        return secret
+
+    def _sign(self, encoded):
+        signature = hmac.new(self._get_session_secret(), encoded, hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
+
     def _create_session(self, username):
-        token = secrets.token_urlsafe(32)
-        self._sessions[token] = {
-            "username": username,
-            "expires_at": time.time() + self._session_ttl
-        }
-        return token
+        expires_at = int(time.time() + self._session_ttl)
+        payload = f"{username}:{expires_at}".encode("utf-8")
+        encoded = base64.urlsafe_b64encode(payload).rstrip(b"=")
+        return f"{encoded.decode('ascii')}.{self._sign(encoded)}"
 
     def _get_session(self, request: Request):
         token = request.cookies.get(self._session_cookie)
-        if not token:
+        if not token or "." not in token:
             return None
-        session = self._sessions.get(token)
-        if not session:
+        encoded, _, signature = token.partition(".")
+        if not hmac.compare_digest(signature, self._sign(encoded.encode("ascii"))):
             return None
-        if session["expires_at"] <= time.time():
-            self._sessions.pop(token, None)
+        try:
+            payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode("utf-8")
+            username, expires_text = payload.rsplit(":", 1)
+            expires_at = int(expires_text)
+        except (ValueError, UnicodeDecodeError):
             return None
-        return session
+        if expires_at <= time.time():
+            return None
+        return {"username": username}
 
     def _is_authenticated(self, request: Request):
         return self._get_session(request) is not None
