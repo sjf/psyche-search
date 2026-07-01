@@ -1,4 +1,4 @@
-import { Pause, Play, X } from "lucide-react";
+import { Download, Pause, Play, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
 import FileActionBar from "../components/FileActionBar";
@@ -389,9 +389,14 @@ export default function DownloadsPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>Downloads</h1>
-          <p className="page-subtitle">Manage in-progress and completed downloads.</p>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <Download size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>Downloads</h1>
+            <p className="page-subtitle">Manage in-progress and completed downloads.</p>
+          </div>
         </div>
       </header>
 

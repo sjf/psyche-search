@@ -1,3 +1,4 @@
+import { MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 
@@ -54,9 +55,14 @@ export default function ChatPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>Chat</h1>
-          <p className="page-subtitle">Recent Soulseek messages.</p>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <MessageSquare size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>Chat</h1>
+            <p className="page-subtitle">Recent Soulseek messages.</p>
+          </div>
         </div>
       </header>
 

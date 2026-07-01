@@ -1,10 +1,17 @@
+import { Info } from "lucide-react";
+
 export default function AboutPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>About</h1>
-          <p className="page-subtitle">Soulseek Remote is a Soulseek client you run from a browser.</p>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <Info size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>About</h1>
+            <p className="page-subtitle">Psyche Seek is a Soulseek client you run from a browser.</p>
+          </div>
         </div>
       </header>
 

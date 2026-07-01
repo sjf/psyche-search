@@ -1,4 +1,4 @@
-import { FileText, Folder, FolderOpen, Music2 } from "lucide-react";
+import { ChevronRight, FileText, Folder, FolderOpen, Music2 } from "lucide-react";
 import { ReactNode } from "react";
 
 export interface FileNode {
@@ -83,19 +83,34 @@ export default function FileTree({
         }}
       >
         {isDir ? (
-          <button
-            type="button"
-            className="tree-icon-button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggle(node);
-            }}
-            aria-label={expanded ? "Collapse folder" : "Expand folder"}
-          >
-            {icon}
-          </button>
+          <>
+            <span
+              className={`tree-caret${expanded ? " tree-caret-open" : ""}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle(node);
+              }}
+              aria-hidden="true"
+            >
+              <ChevronRight size={13} strokeWidth={2.2} />
+            </span>
+            <button
+              type="button"
+              className="tree-icon-button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle(node);
+              }}
+              aria-label={expanded ? "Collapse folder" : "Expand folder"}
+            >
+              {icon}
+            </button>
+          </>
         ) : (
-          <span className="tree-icon">{icon}</span>
+          <>
+            <span className="tree-caret-spacer" aria-hidden="true" />
+            <span className="tree-icon">{icon}</span>
+          </>
         )}
         <span className="tree-label">{node.name}</span>
         {displaySize && <span className="tree-meta">{displaySize}</span>}

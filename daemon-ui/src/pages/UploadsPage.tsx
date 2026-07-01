@@ -1,10 +1,17 @@
+import { UploadCloud } from "lucide-react";
+
 export default function UploadsPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>Uploads</h1>
-          <p className="page-subtitle">Recently active and in-progress uploads.</p>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <UploadCloud size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>Uploads</h1>
+            <p className="page-subtitle">Recently active and in-progress uploads.</p>
+          </div>
         </div>
       </header>
 

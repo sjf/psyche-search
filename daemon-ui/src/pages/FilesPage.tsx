@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { FolderTree, Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
 import FileActionBar from "../components/FileActionBar";
@@ -316,9 +316,14 @@ export default function FilesPage() {
   return (
     <div className="page files-page">
       <header className="page-header">
-        <div>
-          <h1>Files</h1>
-          <p className="page-subtitle">Browse and manage shared and downloaded files.</p>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <FolderTree size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>Files</h1>
+            <p className="page-subtitle">Browse and manage shared and downloaded files.</p>
+          </div>
         </div>
       </header>
 
