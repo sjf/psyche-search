@@ -49,6 +49,13 @@ purely as the Soulseek protocol engine. Everything you see and touch is new.
 > Jellyfin, point it at your download directory, and pull music straight into your
 > library.
 
+<p align="center">
+  <img src="assets/search-results.png" alt="Search results grouped by user and folder, with size, bitrate and sample-rate attributes" width="100%">
+</p>
+<p align="center">
+  <img src="assets/search-home.png" alt="The search home page with recent searches" width="100%">
+</p>
+
 ## Highlights
 
 - 🔎 **Search** the Soulseek network with recent-search history and a filter syntax
