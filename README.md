@@ -98,7 +98,7 @@ palette, typography and motion — is documented in **[DESIGN.md](DESIGN.md)**.
 #    (the [server] section: login / passw)
 
 # 3. Run the daemon (must use the venv Python)
-.venv/bin/python nicotine -d
+.venv/bin/python pseek -d
 ```
 
 Then open **http://localhost:7007** and sign in with your Soulseek credentials.
