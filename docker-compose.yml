@@ -1,0 +1,25 @@
+services:
+  psyche-search:
+    build: .
+    image: psyche-search:latest
+    container_name: psyche-search
+    restart: unless-stopped
+    ports:
+      - "7007:7007"   # web UI
+      - "2234:2234"   # Soulseek peer/listen port (forward this on your router)
+    environment:
+      # Own mounted files as this host uid/gid (defaults 1000:1000).
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      # Used only to seed the config on first run. Once /config/config exists
+      # these are ignored. Override in a .env file or your shell.
+      SLSK_USERNAME: "${SLSK_USERNAME:-}"
+      SLSK_PASSWORD: "${SLSK_PASSWORD:-}"
+    volumes:
+      - ./config:/config              # config file + app state (logs, db)
+      - /path/to/downloads:/downloads # completed downloads
+      - /path/to/incomplete:/incomplete   # in-progress downloads
+      # Each subdirectory under /shares becomes its own share, named after the
+      # folder. Mount as many as you like.
+      - /path/to/music:/shares/music:ro
+      - /path/to/podcasts:/shares/podcasts:ro

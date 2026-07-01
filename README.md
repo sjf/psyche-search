@@ -126,6 +126,57 @@ palette, typography and motion — is documented in **[DESIGN.md](DESIGN.md)**.
 Then open **http://localhost:7007** and sign in with your Soulseek credentials.
 On a server, put it behind your reverse proxy of choice.
 
+## Running with Docker
+
+The image builds the web UI and runs the daemon headless — ideal for a media
+server. Your share, download and in-progress directories are mounted in as
+volumes.
+
+**With Docker Compose** (recommended). Edit the volume paths in
+[`docker-compose.yml`](docker-compose.yml), then:
+
+```bash
+SLSK_USERNAME=your_user SLSK_PASSWORD=your_pass docker compose up -d --build
+```
+
+**With `docker run`:**
+
+```bash
+docker build -t psyche-search:latest .
+
+docker run -d --name psyche-search --restart unless-stopped \
+  -p 7007:7007 \        # web UI
+  -p 2234:2234 \        # Soulseek peer port (forward this on your router)
+  -e PUID=1000 -e PGID=1000 \
+  -e SLSK_USERNAME=your_user -e SLSK_PASSWORD=your_pass \
+  -v /srv/psyche-search/config:/config \       # config file + app state
+  -v /srv/downloads:/downloads \               # completed downloads
+  -v /srv/incomplete:/incomplete \             # in-progress downloads
+  -v /srv/music/albums:/shares/albums:ro \     # a share
+  -v /srv/music/singles:/shares/singles:ro \   # another share
+  psyche-search:latest
+```
+
+Then open **http://your-server:7007** and sign in with your Soulseek credentials.
+
+**How the volumes work:**
+
+| Mount | Purpose |
+| --- | --- |
+| `/config` | Config file and app state (logs, database). Persist this. |
+| `/downloads` | Completed downloads. |
+| `/incomplete` | In-progress downloads. |
+| `/shares/<name>` | Each subdirectory becomes one share, named after the folder. Mount as many as you like; keep them `:ro`. |
+
+Notes:
+
+- `SLSK_USERNAME` / `SLSK_PASSWORD` only **seed** `/config/config` on first run.
+  After that the mounted config is authoritative — change credentials, shares or
+  directories there (or in the **Settings** page) and restart.
+- `PUID` / `PGID` set the uid/gid that owns files written to the mounted volumes
+  (default `1000:1000`). Set them to match your host user.
+- Forward port **2234** on your router so peers can connect for uploads.
+
 ### Developing the UI
 
 Run the daemon for the API, then start Vite with hot-reload:

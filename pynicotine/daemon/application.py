@@ -68,8 +68,10 @@ class Application:
         raise exc_value
 
     def _start_web_server(self):
-        host = config.sections["daemon"]["web_host"]
-        port = config.sections["daemon"]["web_port"]
+        host = os.environ.get("WEB_HOST") or config.sections["daemon"]["web_host"]
+
+        port_override = os.environ.get("WEB_PORT")
+        port = int(port_override) if port_override else config.sections["daemon"]["web_port"]
 
         try:
             import uvicorn
