@@ -291,7 +291,7 @@ setup(
                 ("NSHumanReadableCopyright", pynicotine.__copyright__),
                 ("NSSupportsAutomaticGraphicsSwitching", True)  # Prefer integrated GPU
             ],
-            "codesign_identity": "-",
+            "codesign_identity": os.environ.get("CODESIGN_IDENTITY") or "-",
             "codesign_deep": True,
             "codesign_entitlements": os.path.join(CURRENT_PATH, "codesign-entitlements.plist"),
             "codesign_options": "runtime",

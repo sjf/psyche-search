@@ -188,8 +188,43 @@ jobs:
       - name: Install build dependencies
         run: venv/bin/python3 build-aux/macos/dependencies.py
 
+      - name: Import signing certificate
+        if: env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
       - name: Freeze application
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
         run: venv/bin/python3 build-aux/macos/setup.py bdist_dmg
+
+      - name: Notarize and staple installer
+        if: env.MACOS_NOTARIZATION_APPLE_ID != ''
+        env:
+          MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
+          MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
+          MACOS_NOTARIZATION_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
+        run: |
+          for dmg in build-aux/macos/build/*.dmg; do
+            xcrun notarytool submit "$dmg" \
+              --apple-id "$MACOS_NOTARIZATION_APPLE_ID" \
+              --team-id "$MACOS_NOTARIZATION_TEAM_ID" \
+              --password "$MACOS_NOTARIZATION_PASSWORD" \
+              --wait
+            xcrun stapler staple "$dmg"
+          done
 
       - name: Archive installer artifacts
         uses: actions/upload-artifact@v5
