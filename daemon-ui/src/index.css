@@ -168,13 +168,11 @@ a {
 }
 
 .sidebar-logo {
-  width: 46px;
-  height: 46px;
+  width: 56px;
+  height: 56px;
   object-fit: contain;
-  border-radius: var(--r);
-  padding: 4px;
-  background: radial-gradient(circle at 50% 40%, rgba(255, 210, 63, 0.16), transparent 70%);
-  filter: drop-shadow(0 0 8px rgba(255, 210, 63, 0.35));
+  background: radial-gradient(circle at 50% 50%, rgba(150, 100, 255, 0.32), transparent 68%);
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.6));
 }
 
 .sidebar-brand {

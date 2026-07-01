@@ -1,11 +1,11 @@
 <!--
-  SPDX-FileCopyrightText: 2026 Psyche Seek Contributors
+  SPDX-FileCopyrightText: 2026 PsycheSeek Contributors
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-# Design — Psyche Seek
+# Design — PsycheSeek
 
-Psyche Seek uses a flat **"neon-wire" cyberpunk** aesthetic: ink-black surfaces, a
+PsycheSeek uses a flat **"neon-wire" cyberpunk** aesthetic: ink-black surfaces, a
 faint violet grid and layered glow, with two neon accents used sparingly against
 the dark. The canary mascot survives as a small gold accent — the animated
 equalizer beside the now-playing track is its "song."
