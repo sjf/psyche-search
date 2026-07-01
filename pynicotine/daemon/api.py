@@ -44,12 +44,22 @@ class DaemonAPI:
 
         @app.post("/auth/login")
         def login(response: Response, username: str = Form(""), password: str = Form("")):
-            config_user, config_pass = self._get_config_credentials()
-            if not config_user or not config_pass:
-                raise HTTPException(status_code=503, detail="Authentication not configured")
-            if not self._credentials_match(username, password, config_user, config_pass):
-                raise HTTPException(status_code=401, detail="Invalid credentials")
-            token = self._create_session(config_user)
+            if not username or not password:
+                raise HTTPException(status_code=400, detail="Missing username or password")
+
+            result = self.state.begin_login(username, password)
+            if not result["success"]:
+                reason = result.get("reason")
+                if reason == "invalid_password":
+                    raise HTTPException(status_code=401, detail="Incorrect password for this Soulseek account")
+                if reason == "invalid_username":
+                    raise HTTPException(status_code=401, detail="Invalid Soulseek username")
+                if reason == "rejected":
+                    raise HTTPException(status_code=401, detail="Soulseek rejected the login")
+                raise HTTPException(status_code=503, detail="Could not reach the Soulseek server")
+
+            authenticated_user = result["username"]
+            token = self._create_session(authenticated_user)
             response.set_cookie(
                 self._session_cookie,
                 token,
@@ -57,10 +67,11 @@ class DaemonAPI:
                 samesite="lax",
                 max_age=self._session_ttl
             )
-            return {"authenticated": True, "username": config_user}
+            return {"authenticated": True, "username": authenticated_user}
 
         @app.post("/auth/logout")
         def logout(response: Response):
+            self.state.begin_logout()
             response.delete_cookie(self._session_cookie)
             response.status_code = 204
             return response
@@ -423,17 +434,6 @@ class DaemonAPI:
             os.startfile(path_value)  # pylint: disable=no-member
         else:
             subprocess.run(["xdg-open", path_value], check=False)
-
-    @staticmethod
-    def _credentials_match(username, password, config_user, config_pass):
-        return hmac.compare_digest(username, config_user) and hmac.compare_digest(password, config_pass)
-
-
-    @staticmethod
-    def _get_config_credentials():
-        username = config.sections["server"].get("login") or ""
-        password = config.sections["server"].get("passw") or ""
-        return username, password
 
     def _get_session_secret(self):
         if self._session_secret is not None:

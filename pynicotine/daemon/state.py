@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import hashlib
+import hmac
 import json
 import os
 import threading
@@ -27,7 +29,7 @@ USER_BROWSE_TIMEOUT = 45  # give up on an unresponsive user after this many seco
 class DaemonState:
     __slots__ = ("_lock", "share_files", "share_folders", "share_status", "chat_lines",
                  "searches", "search_results", "search_terms", "max_search_results",
-                 "pending_requests", "_pending_request_id",
+                 "pending_requests", "_pending_request_id", "_pending_login",
                  "_user_browse_status", "_user_browse_progress", "_user_browse_started",
                  "_user_tree_cache", "connection_info", "portmap_info",
                  "download_path_overrides")
@@ -44,6 +46,7 @@ class DaemonState:
         self.max_search_results = 500
         self.pending_requests = {}
         self._pending_request_id = 0
+        self._pending_login = None
         self._user_browse_status = {}
         self._user_browse_progress = {}
         self._user_browse_started = {}
@@ -101,6 +104,117 @@ class DaemonState:
 
             pending["token"] = token
             pending["event"].set()
+
+    def begin_login(self, username, password):
+        prev_login = config.sections["server"]["login"] or ""
+        prev_pass = config.sections["server"]["passw"] or ""
+
+        with self._lock:
+            # Fast path: already logged into Soulseek as this user. The live
+            # connection proves the saved password is valid, so matching it is a
+            # genuine credential check, not a config-file shortcut.
+            if core.users is not None and core.users.login_status == UserStatus.ONLINE \
+                    and core.users.login_username == username \
+                    and hmac.compare_digest(password, prev_pass):
+                return {"success": True, "username": username}
+
+            pending = {
+                "event": threading.Event(),
+                "result": None,
+                "username": username,
+                "password": password,
+                "prev_login": prev_login,
+                "prev_pass": prev_pass
+            }
+            self._pending_login = pending
+
+        events.invoke_main_thread(self._start_login_main_thread, username, password)
+        completed = pending["event"].wait(timeout=20)
+
+        with self._lock:
+            result = pending["result"]
+            self._pending_login = None
+
+        # resolve_login already persisted (success) or restored (failure) the
+        # config on the main thread before signalling, so the file is settled.
+        if completed and result is not None:
+            return result
+
+        # Timed out with no answer from the server: restore the last known-good
+        # session and wait for it, so we never leave failed creds on disk.
+        restore_done = threading.Event()
+        events.invoke_main_thread(self._restore_previous_session, prev_login, prev_pass, restore_done)
+        restore_done.wait(timeout=10)
+        return {"success": False, "reason": "unreachable"}
+
+    def _start_login_main_thread(self, username, password):
+        config.sections["server"]["login"] = username
+        config.sections["server"]["passw"] = password
+
+        if core.users is not None and core.users.login_status != UserStatus.OFFLINE:
+            core.reconnect()
+        else:
+            core.connect()
+
+    def _restore_previous_session(self, prev_login, prev_pass, done=None):
+        config.sections["server"]["login"] = prev_login
+        config.sections["server"]["passw"] = prev_pass
+        # Persist immediately so a failed attempt never lingers on disk, even if
+        # the daemon quits before the restored session finishes logging back in.
+        config.write_configuration()
+
+        if not prev_login or not prev_pass:
+            if core.users is not None and core.users.login_status != UserStatus.OFFLINE:
+                core.disconnect()
+        elif core.users is not None and core.users.login_status != UserStatus.OFFLINE:
+            core.reconnect()
+        else:
+            core.connect()
+
+        if done is not None:
+            done.set()
+
+    def resolve_login(self, success, username=None, reason=None, checksum=None):
+        # Runs on the main thread. Settle the config here — persist the verified
+        # creds on success, or roll back to the previous session on failure —
+        # before signalling, so begin_login never returns with stale creds on disk.
+        with self._lock:
+            pending = self._pending_login
+            if pending is None:
+                return
+            attempt_user = pending["username"]
+            attempt_pass = pending["password"]
+            prev_login = pending["prev_login"]
+            prev_pass = pending["prev_pass"]
+
+        if success:
+            # The server echoes md5(password) of the login it accepted. Ignore any
+            # login that isn't the one we attempted — e.g. a startup or auto-reconnect
+            # already in flight with different credentials would otherwise be mistaken
+            # for a successful web login.
+            expected = hashlib.md5(attempt_pass.encode("utf-8")).hexdigest()
+            if username != attempt_user or checksum != expected:
+                return
+            config.write_configuration()
+        else:
+            self._restore_previous_session(prev_login, prev_pass)
+
+        with self._lock:
+            pending = self._pending_login
+            if pending is None:
+                return
+            if success:
+                pending["result"] = {"success": True, "username": username}
+            else:
+                pending["result"] = {"success": False, "reason": reason or "failed"}
+            pending["event"].set()
+
+    def begin_logout(self):
+        events.invoke_main_thread(self._logout_main_thread)
+
+    def _logout_main_thread(self):
+        if core.users is not None and core.users.login_status != UserStatus.OFFLINE:
+            core.disconnect()
 
     def add_search(self, token, term):
         with self._lock:

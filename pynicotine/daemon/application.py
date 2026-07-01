@@ -13,6 +13,7 @@ from pynicotine.daemon.state import compute_share_counts
 from pynicotine.daemon.api import create_app
 from pynicotine.events import events
 from pynicotine.logfacility import log
+from pynicotine.slskmessages import LoginRejectReason
 
 
 class Application:
@@ -40,15 +41,17 @@ class Application:
         events.connect("shared-file-list-response", self._on_shared_file_list_response)
         events.connect("shared-file-list-progress", self._on_shared_file_list_progress)
         events.connect("watch-user", self._on_watch_user)
+        events.connect("server-login", self._on_server_login)
         events.connect("quit", self._on_quit)
 
     def run(self):
-        if config.need_config():
-            log.add("Daemon mode requires username/password in the config file.")
-            return 1
-
         core.start()
-        core.connect()
+
+        # Re-log the last user into Soulseek without prompting. On a fresh install
+        # (no saved creds) the daemon stays idle until the first web login.
+        if not config.need_config():
+            core.connect()
+
         if not self._start_web_server():
             core.quit()
             events.emit("quit")
@@ -202,3 +205,17 @@ class Application:
     def _on_watch_user(self, msg):
         if msg.user and msg.userexists is False:
             self._state.notify_user_browse_not_found(msg.user)
+
+    def _on_server_login(self, msg):
+        if msg.success:
+            self._state.resolve_login(
+                True, username=msg.username, checksum=msg.password_checksum)
+            return
+
+        if msg.rejection_reason == LoginRejectReason.INVALID_PASSWORD:
+            reason = "invalid_password"
+        elif msg.rejection_reason == LoginRejectReason.INVALID_USERNAME:
+            reason = "invalid_username"
+        else:
+            reason = "rejected"
+        self._state.resolve_login(False, reason=reason)

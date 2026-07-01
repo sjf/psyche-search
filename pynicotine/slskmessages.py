@@ -642,7 +642,7 @@ class Login(ServerMessage):
 
     __slots__ = ("username", "passwd", "version", "minorversion", "success", "rejection_reason",
                  "rejection_detail", "banner", "ip_address", "local_address", "server_address",
-                 "is_supporter")
+                 "is_supporter", "password_checksum")
     __excluded_attrs__ = {"passwd"}
 
     def __init__(self, username=None, passwd=None, version=None, minorversion=None):
@@ -658,6 +658,7 @@ class Login(ServerMessage):
         self.local_address = None
         self.server_address = None
         self.is_supporter = None
+        self.password_checksum = None
 
     def make_network_message(self):
 
@@ -686,7 +687,7 @@ class Login(ServerMessage):
 
         pos, self.banner = self.unpack_string(message, pos)
         pos, self.ip_address = self.unpack_ip(message, pos)
-        pos, _checksum = self.unpack_string(message, pos)  # MD5 hexdigest of the password you sent
+        pos, self.password_checksum = self.unpack_string(message, pos)  # MD5 hexdigest of the password you sent
         pos, self.is_supporter = self.unpack_bool(message, pos)
 
 
