@@ -50,13 +50,16 @@ copy of each, and any number of test daemons can run side by side:
    deliberately wrong credentials (any taken username + wrong password) — the
    startup login fails harmlessly and the daemon idles offline while the web
    UI and API still work. When a daemon genuinely needs to be online, use one
-   of the designated test accounts in `.creds` at the repo root (untracked;
-   `username/password` per line, ask the human if it's missing), and accept
-   that only one daemon can be online per account at a time — the
-   server allows one session per account, and a second login kicks the first
-   offline. Do NOT register new Soulseek accounts (logging in with an unused
-   username silently creates one) — and never use the human's real account in
-   a test daemon.
+   of the designated test accounts in `.creds` at the repo root (untracked and
+   gitignored; ask the human if it's missing). Each non-comment line is one
+   account: `username/password/FE port`, where the FE (front-end) port is that
+   account's designated web port — always run that account's daemon on its FE
+   port, so every session knows which port maps to which account and two
+   sessions don't grab the same account behind different ports. Only one
+   daemon can be online per account at a time — the server allows one session
+   per account, and a second login kicks the first offline. Do NOT register
+   new Soulseek accounts (logging in with an unused username silently creates
+   one) — and never use the human's real account in a test daemon.
 
 Unlike those three, the **transfer directories are shared**: every daemon uses
 the same download/incomplete/shared folders as the human's setup, so files land
@@ -72,12 +75,18 @@ free_port() { local p=$1; while lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null; do 
 
 DIR=$(mktemp -d)                                  # or a session-scratchpad subdir
 SLSK_PORT=$(free_port $((2300 + RANDOM % 90)))    # random base to avoid cross-session collisions
+
+# Offline daemon (the default): wrong creds, any free web port.
 WEB_PORT=$(free_port $((7040 + RANDOM % 50)))
+SLSK_USER=john SLSK_PASS=wrong-password
+
+# Online daemon: take an account line from .creds and use ITS designated FE port.
+# IFS=/ read -r SLSK_USER SLSK_PASS WEB_PORT < <(grep -v '^#' .creds | sed -n '1p')
 
 cat > "$DIR/config" <<EOF
 [server]
-login = <see account rules above>
-passw = <see account rules above>
+login = $SLSK_USER
+passw = $SLSK_PASS
 portrange = ($SLSK_PORT, $SLSK_PORT)
 
 [transfers]
