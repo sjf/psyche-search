@@ -1,17 +1,12 @@
-import { Download, X } from "lucide-react";
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import FileTree, { FileNode, formatSize } from "./FileTree";
+import { ChevronRight, Download, X } from "lucide-react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import FileTree, { FileNode, formatSize } from "../components/FileTree";
 import { useToast } from "../state/toast";
 
 interface BrowseProgress {
   position: number;
   total: number;
-}
-
-interface UserBrowsePaneProps {
-  username: string;
-  focusPath?: string;
-  onClose: () => void;
 }
 
 type BrowseStatus = "loading" | "ready" | "not_found" | "error";
@@ -23,14 +18,19 @@ function collectFiles(node: FileNode): FileNode[] {
   return (node.children || []).flatMap(collectFiles);
 }
 
-export default function UserBrowsePane({ username, focusPath, onClose }: UserBrowsePaneProps) {
+export default function UserBrowsePage() {
+  const { username: usernameParam } = useParams();
+  const username = usernameParam || "";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPath = searchParams.get("path") || "";
+  const navigate = useNavigate();
   const { addToast } = useToast();
+
   const [status, setStatus] = useState<BrowseStatus>("loading");
   const [tree, setTree] = useState<FileNode[]>([]);
   const [progress, setProgress] = useState<BrowseProgress | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>({});
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
 
@@ -40,7 +40,6 @@ export default function UserBrowsePane({ username, focusPath, onClose }: UserBro
     setStatus("loading");
     setTree([]);
     setProgress(null);
-    setSelectedId(null);
     setExpandedState({});
 
     const load = async () => {
@@ -94,13 +93,12 @@ export default function UserBrowsePane({ username, focusPath, onClose }: UserBro
     };
   }, [username, reloadKey]);
 
-  const retry = () => setReloadKey((key) => key + 1);
-
+  // Expand the current path (and its ancestors) so the target folder is visible.
   useEffect(() => {
-    if (status !== "ready" || !focusPath || focusPath === "(root)") {
+    if (status !== "ready" || !currentPath) {
       return;
     }
-    const parts = focusPath.split("\\").filter(Boolean);
+    const parts = currentPath.split("\\").filter(Boolean);
     const ancestors: Record<string, boolean> = {};
     let accum = "";
     for (const part of parts) {
@@ -108,18 +106,27 @@ export default function UserBrowsePane({ username, focusPath, onClose }: UserBro
       ancestors[accum] = true;
     }
     setExpandedState((prev) => ({ ...prev, ...ancestors }));
-    setSelectedId(focusPath);
-  }, [status, focusPath, tree]);
+  }, [status, currentPath, tree]);
 
+  // Scroll the current folder so it sits just under the pinned bar.
   useEffect(() => {
-    if (!selectedId) {
+    if (status !== "ready" || !currentPath) {
       return;
     }
     const el = bodyRef.current?.querySelector(".tree-row-selected");
     if (el) {
-      el.scrollIntoView({ block: "center" });
+      el.scrollIntoView({ block: "start" });
     }
-  }, [selectedId, expandedState, tree]);
+  }, [status, currentPath, expandedState, tree]);
+
+  const retry = () => setReloadKey((key) => key + 1);
+
+  const navigateToFolder = useCallback(
+    (path: string) => {
+      setSearchParams(path ? { path } : {});
+    },
+    [setSearchParams]
+  );
 
   const handleToggle = useCallback((node: FileNode) => {
     if (node.type !== "dir") {
@@ -127,6 +134,15 @@ export default function UserBrowsePane({ username, focusPath, onClose }: UserBro
     }
     setExpandedState((prev) => ({ ...prev, [node.id]: !(prev[node.id] ?? false) }));
   }, []);
+
+  const handleActivate = useCallback(
+    (node: FileNode) => {
+      if (node.type === "dir") {
+        navigateToFolder(String(node.path || node.id));
+      }
+    },
+    [navigateToFolder]
+  );
 
   const download = useCallback(
     async (path: string, size: number) => {
@@ -196,79 +212,97 @@ export default function UserBrowsePane({ username, focusPath, onClose }: UserBro
     [addToast, download]
   );
 
+  const crumbs = useMemo(() => {
+    const parts = currentPath ? currentPath.split("\\").filter(Boolean) : [];
+    const list: { label: string; path: string }[] = [];
+    let accum = "";
+    for (const part of parts) {
+      accum = accum ? `${accum}\\${part}` : part;
+      list.push({ label: part, path: accum });
+    }
+    return list;
+  }, [currentPath]);
+
   return (
-    <section className="section browse-pane">
-      <div className="section-header browse-pane-header">
-        <h2>Browsing {username}</h2>
+    <div className="page browse-page">
+      <div className="browse-topbar">
         <button
           type="button"
           className="icon-button ghost-button"
-          aria-label="Close browser"
-          title="Back to results"
-          onClick={onClose}
+          aria-label="Back to search"
+          title="Back to search"
+          onClick={() => navigate("/search")}
         >
           <X size={18} strokeWidth={1.6} />
         </button>
-      </div>
-      <div className="table-card">
-        <div
-          className="files-browser-body tree-panel"
-          ref={bodyRef}
-          onClick={() => setSelectedId(null)}
-          role="presentation"
-        >
-          {status === "loading" ? (
-            <div className="browse-loading">
-              <div className="spinner" aria-hidden="true" />
-              {progress ? (
-                <>
-                  <div className="browse-progress">
-                    <div
-                      className="browse-progress-fill"
-                      style={{ width: `${Math.min(100, Math.round((progress.position / progress.total) * 100))}%` }}
-                    />
-                  </div>
-                  <span className="browse-loading-text">
-                    Loading {username}'s files… {formatSize(progress.position)} / {formatSize(progress.total)} (
-                    {Math.min(100, Math.round((progress.position / progress.total) * 100))}%)
-                  </span>
-                </>
-              ) : (
-                <span className="browse-loading-text">Loading {username}'s files…</span>
-              )}
-            </div>
-          ) : status === "not_found" ? (
-            <div className="empty-state">
-              {username} could not be found or is offline.
-              <button type="button" className="link-button browse-retry" onClick={retry}>
-                Retry
+        <nav className="browse-crumbs" aria-label="Location">
+          <button type="button" className="link-button browse-crumb-user" onClick={() => navigateToFolder("")}>
+            {username}
+          </button>
+          {crumbs.map((crumb) => (
+            <span key={crumb.path} className="browse-crumb">
+              <ChevronRight size={14} strokeWidth={1.6} className="crumb-chevron" />
+              <button type="button" className="link-button" onClick={() => navigateToFolder(crumb.path)}>
+                {crumb.label}
               </button>
-            </div>
-          ) : status === "error" ? (
-            <div className="empty-state">
-              Could not load {username}'s files.
-              <button type="button" className="link-button browse-retry" onClick={retry}>
-                Retry
-              </button>
-            </div>
-          ) : tree.length === 0 ? (
-            <div className="empty-state">{username} is not sharing any files.</div>
-          ) : (
-            tree.map((node) => (
-              <FileTree
-                key={node.id}
-                node={node}
-                selectedId={selectedId}
-                onSelect={(selected) => setSelectedId(selected.id)}
-                expandedState={expandedState}
-                onToggle={handleToggle}
-                defaultExpanded={false}
-                renderActions={renderActions}
-              />
-            ))
-          )}
-        </div>
+            </span>
+          ))}
+        </nav>
       </div>
-    </section>
+
+      <div className="browse-tree-body tree-panel" ref={bodyRef}>
+        {status === "loading" ? (
+          <div className="browse-loading">
+            <div className="spinner" aria-hidden="true" />
+            {progress ? (
+              <>
+                <div className="browse-progress">
+                  <div
+                    className="browse-progress-fill"
+                    style={{ width: `${Math.min(100, Math.round((progress.position / progress.total) * 100))}%` }}
+                  />
+                </div>
+                <span className="browse-loading-text">
+                  Loading {username}'s files… {formatSize(progress.position)} / {formatSize(progress.total)} (
+                  {Math.min(100, Math.round((progress.position / progress.total) * 100))}%)
+                </span>
+              </>
+            ) : (
+              <span className="browse-loading-text">Loading {username}'s files…</span>
+            )}
+          </div>
+        ) : status === "not_found" ? (
+          <div className="empty-state">
+            {username} could not be found or is offline.
+            <button type="button" className="link-button browse-retry" onClick={retry}>
+              Retry
+            </button>
+          </div>
+        ) : status === "error" ? (
+          <div className="empty-state">
+            Could not load {username}'s files.
+            <button type="button" className="link-button browse-retry" onClick={retry}>
+              Retry
+            </button>
+          </div>
+        ) : tree.length === 0 ? (
+          <div className="empty-state">{username} is not sharing any files.</div>
+        ) : (
+          tree.map((node) => (
+            <FileTree
+              key={node.id}
+              node={node}
+              selectedId={currentPath}
+              onSelect={() => {}}
+              onActivate={handleActivate}
+              expandedState={expandedState}
+              onToggle={handleToggle}
+              defaultExpanded={false}
+              renderActions={renderActions}
+            />
+          ))
+        )}
+      </div>
+    </div>
   );
 }

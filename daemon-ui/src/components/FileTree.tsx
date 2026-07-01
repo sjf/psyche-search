@@ -35,6 +35,7 @@ interface FileTreeProps {
   depth?: number;
   defaultExpanded?: boolean;
   renderActions?: (node: FileNode) => ReactNode;
+  onActivate?: (node: FileNode) => void;
 }
 
 export default function FileTree({
@@ -45,7 +46,8 @@ export default function FileTree({
   onToggle,
   depth = 0,
   defaultExpanded = true,
-  renderActions
+  renderActions,
+  onActivate
 }: FileTreeProps) {
   const isDir = node.type === "dir";
   const expanded = isDir ? expandedState[node.id] ?? defaultExpanded : false;
@@ -70,9 +72,13 @@ export default function FileTree({
         className={`tree-row ${isSelected ? "tree-row-selected" : ""} ${isTopLevel ? "tree-row-top" : ""}`}
         onClick={(event) => {
           event.stopPropagation();
-          onSelect(node);
-          if (isDir) {
-            onToggle(node);
+          if (isDir && onActivate) {
+            onActivate(node);
+          } else {
+            onSelect(node);
+            if (isDir) {
+              onToggle(node);
+            }
           }
         }}
       >
@@ -108,6 +114,7 @@ export default function FileTree({
               depth={depth + 1}
               defaultExpanded={defaultExpanded}
               renderActions={renderActions}
+              onActivate={onActivate}
             />
           ))}
         </div>

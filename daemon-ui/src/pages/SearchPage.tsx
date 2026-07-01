@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
 import NotConnectedNotice from "../components/NotConnectedNotice";
 import SearchBar from "../components/SearchBar";
-import UserBrowsePane from "../components/UserBrowsePane";
 import { useToast } from "../state/toast";
 
 interface SearchEntry {
@@ -96,7 +95,6 @@ export default function SearchPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [statusReady, setStatusReady] = useState(false);
   const [manualClear, setManualClear] = useState(false);
-  const [browse, setBrowse] = useState<{ username: string; focusPath?: string } | null>(null);
   const prefetchedRef = useRef<Set<string>>(new Set());
   const hoverTimerRef = useRef<number | null>(null);
   const pollTimer = useRef<number | null>(null);
@@ -398,7 +396,7 @@ export default function SearchPage() {
           title={`Browse ${user}'s files`}
           onClick={(event) => {
             event.stopPropagation();
-            setBrowse({ username: user });
+            navigate(`/user/${encodeURIComponent(user)}`);
           }}
         >
           (root)
@@ -417,7 +415,7 @@ export default function SearchPage() {
             title={`Browse ${part}`}
             onClick={(event) => {
               event.stopPropagation();
-              setBrowse({ username: user, focusPath: sub });
+              navigate(`/user/${encodeURIComponent(user)}?path=${encodeURIComponent(sub)}`);
             }}
           >
             {part}
@@ -469,7 +467,6 @@ export default function SearchPage() {
     if (!trimmed) {
       return;
     }
-    setBrowse(null);
     const params = new URLSearchParams();
     params.set("term", trimmed);
     try {
@@ -504,7 +501,6 @@ export default function SearchPage() {
           setActiveTerm("");
           setRows([]);
           setStatus("");
-          setBrowse(null);
           navigate("/search", { replace: true });
         }}
         disabled={!isConnected}
@@ -515,13 +511,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {browse ? (
-        <UserBrowsePane
-          username={browse.username}
-          focusPath={browse.focusPath}
-          onClose={() => setBrowse(null)}
-        />
-      ) : activeTerm ? (
+      {activeTerm ? (
         <section className="section">
           <div className="section-header">
             <h2>Search Results</h2>
@@ -612,7 +602,7 @@ export default function SearchPage() {
                             title={`Browse ${group.user}'s files`}
                             onClick={(event) => {
                               event.stopPropagation();
-                              setBrowse({ username: group.user });
+                              navigate(`/user/${encodeURIComponent(group.user)}`);
                             }}
                           >
                             {group.user}

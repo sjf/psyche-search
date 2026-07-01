@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import SearchPage from "./pages/SearchPage";
 import SettingsPage from "./pages/SettingsPage";
 import UploadsPage from "./pages/UploadsPage";
+import UserBrowsePage from "./pages/UserBrowsePage";
 import { AuthProvider } from "./state/auth";
 import { FooterProvider } from "./state/footer";
 import { PlayerProvider } from "./state/player";
@@ -39,6 +40,7 @@ export default function App() {
                   <Route path="/search/:term" element={<SearchPage />} />
                   <Route path="/downloads" element={<DownloadsPage />} />
                   <Route path="/files" element={<FilesPage />} />
+                  <Route path="/user/:username" element={<UserBrowsePage />} />
                   <Route path="/uploads" element={<UploadsPage />} />
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
