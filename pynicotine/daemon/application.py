@@ -47,10 +47,17 @@ class Application:
     def run(self):
         core.start()
 
-        # Re-log the last user into Soulseek without prompting. On a fresh install
-        # (no saved creds) the daemon stays idle until the first web login.
+        # Re-log the last user into Soulseek without prompting, so the daemon
+        # stays signed in and sharing in the background without the web UI.
         if not config.need_config():
             core.connect()
+        else:
+            log.add(
+                "ERROR: No Soulseek credentials configured. The daemon is NOT "
+                "signed in and is NOT sharing. Sign in once via the web UI to "
+                "connect; credentials are then saved and reused automatically.",
+                title="Not signed in"
+            )
 
         if not self._start_web_server():
             core.quit()
