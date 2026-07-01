@@ -54,77 +54,29 @@ debuild -sa -us -uc
 ```
 
 
-## Windows
+## Windows and macOS Desktop App
 
-GitHub Actions currently builds Nicotine+ installers for Windows. However, the
-following instructions may be useful if you wish to generate an installer on
-your own machine.
+The Windows and macOS desktop apps are the web UI wrapped in a native
+[pywebview](https://pywebview.flowlib.org/) window. They contain no GTK. They
+are frozen with [PyInstaller](https://pyinstaller.org/) from the shared spec at
+`build-aux/macos/psyche-seek.spec`, and CI builds them in the `windows` and
+`macos` jobs of `.github/workflows/packaging.yml`.
 
-### Building a Frozen Application with cx_Freeze
-
-Follow the instructions on [installing MSYS2](https://www.msys2.org/#installation).
-Once MSYS2 is installed, launch the CLANG64 environment.
-
-Clone the `nicotine-plus` Git repository:
+To build the app on your own machine, see [DESKTOP_APP.md](DESKTOP_APP.md). In
+short:
 
 ```sh
-pacman -S git
-git clone https://github.com/nicotine-plus/nicotine-plus
-cd nicotine-plus
+# Build the web UI
+( cd daemon-ui && npm ci && npm run build )
+
+# Install build dependencies (macOS shown; on Windows use pythonnet
+# instead of pyobjc-framework-WebKit)
+pip install fastapi uvicorn python-multipart pywebview pyobjc-framework-WebKit pyinstaller
+
+# Freeze the app (output lands in dist/)
+pyinstaller --noconfirm --clean build-aux/macos/psyche-seek.spec
 ```
 
-Install dependencies:
-
-```sh
-export ARCH=x86_64
-pacman --noconfirm -S --needed mingw-w64-clang-$ARCH-python
-python3 build-aux/windows/dependencies.py
-```
-
-Build the application:
-
-```sh
-python3 build-aux/windows/setup.py bdist_msi
-```
-
-When the application has finished building, it is located in the
-`build-aux\windows\build\` subfolder.
-
-If you want to run the application, you can launch the executable
-`build-aux\windows\build\package\Nicotine+\Nicotine+.exe`.
-
-
-## macOS
-
-GitHub Actions currently builds Nicotine+ packages for macOS. However, the
-following instructions may be useful if you wish to generate a package on your
-own machine.
-
-### Building a Frozen Application with cx_Freeze
-
-Follow the instructions on [installing Homebrew](https://brew.sh/).
-
-Clone the `nicotine-plus` Git repository:
-
-```sh
-git clone https://github.com/nicotine-plus/nicotine-plus
-cd nicotine-plus
-```
-
-Install dependencies:
-
-```sh
-brew install python@3.13
-python3.13 -m venv venv
-venv/bin/python3 build-aux/macos/dependencies.py
-```
-
-Build the application:
-
-```sh
-venv/bin/python3 build-aux/macos/setup.py bdist_dmg
-```
-
-When the application has finished building, it is located in the
-`build-aux/macos/build/` subfolder as a .dmg file.
+On macOS, `build-aux/macos/build-desktop.sh` wraps these steps and also produces
+a `.dmg`.
 
