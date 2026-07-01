@@ -101,69 +101,50 @@ jobs:
           path: ${{ steps.build-snap.outputs.snap }}
 
   windows:
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: x86_64
-            prefix: mingw-w64-clang-x86_64
-            msystem: clang64
             platform: windows-latest
           - arch: arm64
-            prefix: mingw-w64-clang-aarch64
-            msystem: clangarm64
             platform: windows-11-arm
     runs-on: ${{ matrix.platform }}
-    env:
-      ARCH: ${{ matrix.arch }}
-    defaults:
-      run:
-        shell: msys2 {0}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup msys2
-        uses: msys2/setup-msys2@v2
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          msystem: ${{ matrix.msystem }}
-          update: true
-          install: >-
-            ${{ matrix.prefix }}-ca-certificates
-            ${{ matrix.prefix }}-gettext-tools
-            ${{ matrix.prefix }}-gtk4
-            ${{ matrix.prefix }}-libadwaita
-            ${{ matrix.prefix }}-python-build
-            ${{ matrix.prefix }}-python-cx-freeze
-            ${{ matrix.prefix }}-python-gobject
-            ${{ matrix.prefix }}-python-pycodestyle
-            ${{ matrix.prefix }}-python-pylint
-            ${{ matrix.prefix }}-python-setuptools
-            ${{ matrix.prefix }}-python-wheel
-            ${{ matrix.prefix }}-webp-pixbuf-loader
+          node-version: "20"
 
-      - name: Install additional dependencies
-        run: python3 build-aux/windows/dependencies.py
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Freeze application
-        run: python3 build-aux/windows/setup.py bdist_msi
-
-      - name: Make package portable
+      - name: Build web UI
+        working-directory: daemon-ui
         run: |
-          mkdir build-aux/windows/build/package/Nicotine+/portable/
-          cp build-aux/windows/readme-portable.txt build-aux/windows/build/package/Nicotine+/portable/README.txt
+          npm ci
+          npm run build
 
-      - name: Archive installer artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: windows-${{ matrix.arch }}-installer
-          path: build-aux/windows/build/*.msi
+      - name: Install build dependencies
+        run: pip install fastapi uvicorn python-multipart pywebview pythonnet pyinstaller
+
+      - name: Build desktop app
+        run: pyinstaller --noconfirm --clean build-aux/macos/psyche-seek.spec
+
+      - name: Package portable app
+        run: Compress-Archive -Path "dist/PsycheSeek/*" -DestinationPath "PsycheSeek-windows-${{ matrix.arch }}.zip"
 
       - name: Archive portable artifacts
         uses: actions/upload-artifact@v5
         with:
           name: windows-${{ matrix.arch }}-portable
-          path: build-aux/windows/build/package
+          path: PsycheSeek-windows-*.zip
 
   macos:
     strategy:
@@ -179,14 +160,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Create Python virtual environment
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build web UI
+        working-directory: daemon-ui
         run: |
-          brew uninstall --ignore-dependencies python@3.13
-          brew install --overwrite python@3.13
-          python3.13 -m venv venv
+          npm ci
+          npm run build
 
       - name: Install build dependencies
-        run: venv/bin/python3 build-aux/macos/dependencies.py
+        run: pip install fastapi uvicorn python-multipart pywebview pyobjc-framework-WebKit pyinstaller
 
       - name: Import signing certificate
         if: env.MACOS_CERTIFICATE != ''
@@ -205,10 +196,25 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
-      - name: Freeze application
+      - name: Build desktop app
+        run: pyinstaller --noconfirm --clean build-aux/macos/psyche-seek.spec
+
+      - name: Code sign app
+        if: env.CODESIGN_IDENTITY != ''
         env:
           CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-        run: venv/bin/python3 build-aux/macos/setup.py bdist_dmg
+        run: |
+          codesign --force --deep --options runtime --timestamp \
+            --entitlements build-aux/macos/codesign-entitlements.plist \
+            --sign "$CODESIGN_IDENTITY" "dist/PsycheSeek.app"
+
+      - name: Create disk image
+        run: |
+          mkdir -p build-aux/macos/build stage
+          cp -R "dist/PsycheSeek.app" stage/
+          ln -s /Applications stage/Applications
+          hdiutil create -volname "PsycheSeek" -srcfolder stage -ov -format UDZO \
+            "build-aux/macos/build/PsycheSeek-${{ matrix.arch }}.dmg"
 
       - name: Notarize and staple installer
         if: env.MACOS_NOTARIZATION_APPLE_ID != ''

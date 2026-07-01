@@ -253,14 +253,6 @@ def run():
         from pynicotine import daemon as application
         return application.run()
 
-    # Initialize GTK-based GUI
-    if not headless:
-        from pynicotine import gtkgui as application
-        exit_code = application.run(hidden, ci_mode, isolated_mode, multi_instance)
-
-        if exit_code is not None:
-            return exit_code
-
     # Run without a GUI
     from pynicotine import headless as application
     return application.run()

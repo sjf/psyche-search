@@ -181,56 +181,33 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            prefix: mingw-w64-clang-x86_64
-            msystem: clang64
             platform: windows-latest
           - arch: arm64
-            prefix: mingw-w64-clang-aarch64
-            msystem: clangarm64
             platform: windows-11-arm
     runs-on: ${{ matrix.platform }}
-    env:
-      ARCH: ${{ matrix.arch }}
-    defaults:
-      run:
-        shell: msys2 {0}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup msys2
-        uses: msys2/setup-msys2@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          msystem: ${{ matrix.msystem }}
-          update: true
-          install: >-
-            ${{ matrix.prefix }}-ca-certificates
-            ${{ matrix.prefix }}-gettext-tools
-            ${{ matrix.prefix }}-gtk4
-            ${{ matrix.prefix }}-libadwaita
-            ${{ matrix.prefix }}-python-build
-            ${{ matrix.prefix }}-python-cx-freeze
-            ${{ matrix.prefix }}-python-gobject
-            ${{ matrix.prefix }}-python-pycodestyle
-            ${{ matrix.prefix }}-python-pylint
-            ${{ matrix.prefix }}-python-setuptools
-            ${{ matrix.prefix }}-python-wheel
-            ${{ matrix.prefix }}-webp-pixbuf-loader
+          python-version: "3.12"
 
-      - name: Install additional dependencies
-        run: python3 build-aux/windows/dependencies.py
+      - name: Install dependencies
+        run: pip install build pycodestyle pylint setuptools wheel fastapi uvicorn python-multipart
 
       - name: PEP 8 style checks
-        run: python3 -m pycodestyle
+        run: python -m pycodestyle
 
       - name: Linting
-        run: python3 -m pylint --recursive=y .
+        run: python -m pylint --recursive=y .
 
       - name: Integration and unit tests
-        run: python3 -m unittest -v
+        run: python -m unittest -v
 
       - name: Build without isolation
-        run: python3 -m build --no-isolation
+        run: python -m build --no-isolation
 
   macos:
     strategy:
@@ -247,26 +224,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Create Python virtual environment
-        run: |
-          brew uninstall --ignore-dependencies python@3.13
-          brew install --overwrite python@3.13
-          python3.13 -m venv venv
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Install dependencies
-        run: venv/bin/python3 build-aux/macos/dependencies.py
+        run: pip install build pycodestyle pylint setuptools wheel fastapi uvicorn python-multipart
 
       - name: PEP 8 style checks
-        run: venv/bin/python3 -m pycodestyle
+        run: python -m pycodestyle
 
       - name: Linting
-        run: venv/bin/python3 -m pylint --recursive=y .
+        run: python -m pylint --recursive=y .
 
       - name: Integration and unit tests
-        run: venv/bin/python3 -m unittest -v
+        run: python -m unittest -v
 
       - name: Build
-        run: venv/bin/python3 -m build
+        run: python -m build
 
       - name: Build without isolation
-        run: venv/bin/python3 -m build --no-isolation
+        run: python -m build --no-isolation
