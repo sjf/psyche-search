@@ -5,6 +5,9 @@
 *.desktop
 *.appdata.xml
 
+# macOS Finder metadata
+.DS_Store
+
 # Python byte code files
 *.pyc
 
