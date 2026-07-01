@@ -159,6 +159,10 @@ docker run -d --name psyche-search --restart unless-stopped \
 
 Then open **http://your-server:7007** and sign in with your Soulseek credentials.
 
+`SLSK_USERNAME` / `SLSK_PASSWORD` are **optional** — if you omit them the
+container still starts and you sign in on the login page; the daemon saves those
+credentials to `/config/config` and reuses them on later starts.
+
 **How the volumes work:**
 
 | Mount | Purpose |
@@ -170,9 +174,10 @@ Then open **http://your-server:7007** and sign in with your Soulseek credentials
 
 Notes:
 
-- `SLSK_USERNAME` / `SLSK_PASSWORD` only **seed** `/config/config` on first run.
-  After that the mounted config is authoritative — change credentials, shares or
-  directories there (or in the **Settings** page) and restart.
+- `SLSK_USERNAME` / `SLSK_PASSWORD` only **seed** `/config/config` on first run
+  (and can be omitted — see above). After that the mounted config is
+  authoritative — change credentials, shares or directories there (or in the
+  **Settings** page) and restart.
 - `PUID` / `PGID` set the uid/gid that owns files written to the mounted volumes
   (default `1000:1000`). Set them to match your host user.
 - Forward port **2234** on your router so peers can connect for uploads.

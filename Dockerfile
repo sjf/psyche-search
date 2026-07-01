@@ -18,7 +18,6 @@ ENV PYTHONUNBUFFERED=1 \
     WEB_HOST=0.0.0.0 \
     WEB_PORT=7007 \
     SLSK_CONFIG=/config/config \
-    NICOTINE_DATA_HOME=/config/data \
     PUID=1000 \
     PGID=1000
 
