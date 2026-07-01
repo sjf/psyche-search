@@ -1,4 +1,4 @@
-import { Play, Trash2, X } from "lucide-react";
+import { ExternalLink, FolderOpen, Play, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 interface FileActionBarProps {
@@ -13,10 +13,14 @@ interface FileActionBarProps {
   onQueue: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onReveal?: () => void;
+  onOpen?: () => void;
   disablePlay?: boolean;
   disableQueue?: boolean;
   showRename?: boolean;
   showDelete?: boolean;
+  showReveal?: boolean;
+  showOpen?: boolean;
 }
 
 export default function FileActionBar({
@@ -31,10 +35,14 @@ export default function FileActionBar({
   onQueue,
   onRename,
   onDelete,
+  onReveal,
+  onOpen,
   disablePlay = false,
   disableQueue = false,
   showRename = true,
-  showDelete = true
+  showDelete = true,
+  showReveal = false,
+  showOpen = false
 }: FileActionBarProps) {
   const [metadata, setMetadata] = useState<{
     artist?: string;
@@ -135,6 +143,28 @@ export default function FileActionBar({
       </div>
       <div className="file-actions-right">
         {statusText ? <span className="file-actions-status">{statusText}</span> : null}
+        {showOpen && onOpen ? (
+          <button
+            type="button"
+            className="icon-button ghost-button"
+            onClick={onOpen}
+            aria-label="Open in default app"
+            title="Open in default app"
+          >
+            <ExternalLink size={16} strokeWidth={1.6} />
+          </button>
+        ) : null}
+        {showReveal && onReveal ? (
+          <button
+            type="button"
+            className="icon-button ghost-button"
+            onClick={onReveal}
+            aria-label="Reveal in file manager"
+            title="Reveal in file manager"
+          >
+            <FolderOpen size={16} strokeWidth={1.6} />
+          </button>
+        ) : null}
         {showRename ? (
           <button type="button" className="ghost-button" onClick={onRename}>
             Rename

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
 import FileActionBar from "../components/FileActionBar";
 import Modal from "../components/Modal";
+import { useAuth } from "../state/auth";
 import { useFooter } from "../state/footer";
 import { Track, usePlayer } from "../state/player";
 import { useToast } from "../state/toast";
@@ -73,6 +74,7 @@ export default function DownloadsPage() {
   const { playTrack, enqueue } = usePlayer();
   const { setContent } = useFooter();
   const { addToast } = useToast();
+  const { localFiles } = useAuth();
   const deletePath = selectedItem
     ? String(selectedItem.local_path || selectedItem.path || "")
     : "";
@@ -333,6 +335,35 @@ export default function DownloadsPage() {
     enqueue(toTrack(selectedItem));
   };
 
+  const runFileAction = async (endpoint: string, path: string, failureMessage: string) => {
+    const params = new URLSearchParams();
+    params.set("path", path);
+    try {
+      const response = await apiFetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString()
+      });
+      if (!response.ok) {
+        addToast(failureMessage);
+      }
+    } catch {
+      addToast(failureMessage);
+    }
+  };
+
+  const handleRevealSelected = () => {
+    if (selectedItem?.local_path) {
+      runFileAction("/api/files/reveal", selectedItem.local_path, "Could not reveal file.");
+    }
+  };
+
+  const handleOpenSelected = () => {
+    if (selectedItem?.local_path) {
+      runFileAction("/api/files/open", selectedItem.local_path, "Could not open file.");
+    }
+  };
+
   const toTrack = (item: DownloadItem): Track => ({
     id: item.local_path || item.path,
     title: (item.local_path || item.path).split(/[/\\]/).pop() || item.path,
@@ -369,6 +400,8 @@ export default function DownloadsPage() {
         }}
         onPlay={handlePlaySelected}
         onQueue={handleQueueSelected}
+        onReveal={handleRevealSelected}
+        onOpen={handleOpenSelected}
         onRename={() => {
           setRenameValue(
             (selectedItem.local_path || selectedItem.path).split(/[/\\]/).pop() || ""
@@ -380,11 +413,13 @@ export default function DownloadsPage() {
         disableQueue={!finished || !hasLocalPath}
         showRename={finished && hasLocalPath}
         showDelete={finished && hasLocalPath}
+        showReveal={localFiles && finished && hasLocalPath}
+        showOpen={localFiles && finished && hasLocalPath}
       />
     );
 
     return () => setContent(null);
-  }, [enqueue, playTrack, selectedItem, setContent]);
+  }, [enqueue, localFiles, playTrack, selectedItem, setContent]);
 
   return (
     <div className="page">

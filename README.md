@@ -1,17 +1,17 @@
 <!--
-  SPDX-FileCopyrightText: 2026 Psyche Seek Contributors
+  SPDX-FileCopyrightText: 2026 PsycheSeek Contributors
   SPDX-FileCopyrightText: 2013-2025 Nicotine+ Contributors
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
 <p align="center">
-  <img src="assets/banner.svg" alt="Psyche Seek — a neon web control plane for Soulseek" width="100%">
+  <img src="assets/banner.svg" alt="PsycheSeek — a neon web control plane for Soulseek" width="100%">
 </p>
 
 <p align="center">
-  <b>Psyche Seek</b> (<code>pseek</code>) is a self-hosted web app for finding and downloading music over the
-  <a href="https://www.slsknet.org/news/">Soulseek</a> network — built to run headless on your media server,
-  right next to the *arr stack.
+  <b>PsycheSeek</b> (<code>pseek</code>) is a modern client for finding and downloading music over the
+  <a href="https://www.slsknet.org/news/">Soulseek</a> network — a native <b>desktop app for macOS and Windows</b>,
+  and a self-hosted <b>web app</b> you can run headless on your media server next to the *arr stack.
 </p>
 
 <p align="center">
@@ -19,6 +19,8 @@
   <img alt="React 19" src="https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB">
   <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
   <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-ff2e97?style=for-the-badge">
 </p>
 
@@ -30,10 +32,15 @@ The *arr stack (Sonarr, Radarr, Lidarr…) automates almost everything on a home
 media server — but **music is the gap**. Lidarr can't touch Soulseek, which is
 where the rare, out-of-print and lossless releases actually live.
 
-**Psyche Seek fills that gap.** It's a brand-new **React + TypeScript** front-end
-and a small **FastAPI** daemon that turn a headless server's Soulseek connection
-into a clean, fast web app — search, download, browse and play, from any browser
-on your network. No desktop environment, no GTK, just a tab.
+**PsycheSeek fills that gap.** It's a brand-new **React + TypeScript** front-end
+and a small **FastAPI** daemon that turn a Soulseek connection into a clean, fast
+app — search, download, browse and play. It gives you the full power of the classic
+Soulseek client in a **far more modern, responsive interface**, and runs two ways:
+
+- 🖥️ **As a native desktop app** for **macOS and Windows** — [download a build](https://github.com/sjf/psyche-search/releases)
+  and open it like any other app, in its own window.
+- 🌐 **As a self-hosted web app** on a headless server — no desktop environment, no GTK,
+  just a browser tab, right next to Plex or Jellyfin.
 
 Under the hood it uses **[Nicotine+](https://github.com/nicotine-plus/nicotine-plus)**
 purely as the Soulseek protocol engine. Everything you see and touch is new.
@@ -60,9 +67,24 @@ purely as the Soulseek protocol engine. Everything you see and touch is new.
 - 💬 **Chat** view for recently received messages.
 - ⚙️ **Settings** for your session, connection status and directories.
 
+## Desktop app
+
+PsycheSeek runs as a **native desktop app** on **macOS and Windows** — the same UI in
+its own window, plus local touches like *Reveal in Finder / Explorer* and *Open in the
+default app* for your downloads.
+
+- **Download** a prebuilt app from the [releases page](https://github.com/sjf/psyche-search/releases)
+  — macOS `.dmg`, Windows `.zip`. Builds are currently unsigned, so on first launch macOS
+  needs right‑click → **Open** and Windows SmartScreen needs **More info → Run anyway**.
+- **From source**, launch the native window instead of the web server:
+
+  ```bash
+  .venv/bin/python pseek --desktop
+  ```
+
 ## Design
 
-Psyche Seek ships a flat **"neon-wire" cyberpunk** look. The full design system —
+PsycheSeek ships a flat **"neon-wire" cyberpunk** look. The full design system —
 palette, typography and motion — is documented in **[DESIGN.md](DESIGN.md)**.
 
 ## Architecture
@@ -118,8 +140,8 @@ Lint with `npm run lint`; run backend tests with `python3 -m unittest`.
 
 ## License
 
-Psyche Seek is free software, released under the
+PsycheSeek is free software, released under the
 [GNU General Public License v3.0 or later](https://www.gnu.org/licenses/gpl-3.0-standalone.html),
 inherited from Nicotine+.
 
-© 2026 Psyche Seek Contributors · © 2001–2025 Nicotine+, Nicotine and PySoulSeek Contributors
+© 2026 PsycheSeek Contributors · © 2001–2025 Nicotine+, Nicotine and PySoulSeek Contributors

@@ -16,10 +16,10 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <img className="sidebar-logo" src="/logo-small.png" alt="Psyche Seek canary" />
+        <img className="sidebar-logo" src="/logo-small.png" alt="PsycheSeek canary" />
         <div className="sidebar-brand">
           <span className="brand-name">PSEEK</span>
-          <span className="brand-tag">Psyche Seek</span>
+          <span className="brand-tag">PsycheSeek</span>
           <StatusIndicator />
         </div>
       </div>

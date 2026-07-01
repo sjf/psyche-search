@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: 2025 Nicotine+ Contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Desktop app
+
+on:
+  push:
+    branches: [claude/amazing-chandrasekhar-95aaf5]
+    tags: ["[0-9]+.*", "v[0-9]+.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to publish (draft)"
+        default: "1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build web UI
+        working-directory: daemon-ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Python deps (macOS)
+        if: runner.os == 'macOS'
+        run: pip install fastapi uvicorn python-multipart pywebview pyobjc-framework-WebKit pyinstaller
+
+      - name: Install Python deps (Windows)
+        if: runner.os == 'Windows'
+        run: pip install fastapi uvicorn python-multipart pywebview pythonnet pyinstaller
+
+      - name: Run PyInstaller
+        run: pyinstaller --noconfirm --clean build-aux/macos/psyche-seek.spec
+
+      - name: Package macOS dmg
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p stage
+          cp -R "dist/PsycheSeek.app" stage/
+          ln -s /Applications stage/Applications
+          hdiutil create -volname "PsycheSeek" -srcfolder stage -ov -format UDZO "PsycheSeek-macos.dmg"
+
+      - name: Package Windows zip
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path "dist/PsycheSeek/*" -DestinationPath "PsycheSeek-windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}
+          path: |
+            PsycheSeek-macos.dmg
+            PsycheSeek-windows.zip
+          if-no-files-found: ignore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${{ github.event.inputs.version || github.ref_name }}"
+          if ! gh release view "$VER" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$VER" -R "$GITHUB_REPOSITORY" \
+              --draft --title "PsycheSeek $VER" \
+              --notes "PsycheSeek desktop app $VER (macOS dmg + Windows zip). Unsigned build."
+          fi
+          gh release upload "$VER" -R "$GITHUB_REPOSITORY" --clobber \
+            $(find artifacts -type f \( -name '*.dmg' -o -name '*.zip' \))

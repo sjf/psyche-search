@@ -6,6 +6,7 @@ import DirectoriesModal from "../components/DirectoriesModal";
 import FileTree, { FileNode } from "../components/FileTree";
 import Modal from "../components/Modal";
 import SearchBar from "../components/SearchBar";
+import { useAuth } from "../state/auth";
 import { useFooter } from "../state/footer";
 import { Track, usePlayer } from "../state/player";
 import { useToast } from "../state/toast";
@@ -38,6 +39,7 @@ export default function FilesPage() {
   const { playTrack, enqueue } = usePlayer();
   const { setContent } = useFooter();
   const { addToast } = useToast();
+  const { localFiles } = useAuth();
 
   useEffect(() => {
     try {
@@ -240,6 +242,38 @@ export default function FilesPage() {
     }
   }, [addToast]);
 
+  const runFileAction = useCallback(
+    async (endpoint: string, path: string, failureMessage: string) => {
+      const params = new URLSearchParams();
+      params.set("path", path);
+      try {
+        const response = await apiFetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString()
+        });
+        if (!response.ok) {
+          addToast(failureMessage);
+        }
+      } catch {
+        addToast(failureMessage);
+      }
+    },
+    [addToast]
+  );
+
+  const handleReveal = useCallback(() => {
+    if (selectedNode?.path) {
+      runFileAction("/api/files/reveal", String(selectedNode.path), "Could not reveal file.");
+    }
+  }, [runFileAction, selectedNode]);
+
+  const handleOpen = useCallback(() => {
+    if (selectedNode?.path) {
+      runFileAction("/api/files/open", String(selectedNode.path), "Could not open file.");
+    }
+  }, [runFileAction, selectedNode]);
+
   const handlePlay = useCallback(async () => {
     if (!selectedNode || selectedNode.type !== "file") {
       return;
@@ -299,14 +333,18 @@ export default function FilesPage() {
         mediaPath={selectedNode.path ? String(selectedNode.path) : undefined}
         onPlay={handlePlay}
         onQueue={handleQueue}
+        onReveal={handleReveal}
+        onOpen={handleOpen}
         onRename={() => {
           setRenameValue(selectedNode.name);
           setShowRename(true);
         }}
         onDelete={() => setShowDelete(true)}
+        showReveal={localFiles && Boolean(selectedNode.path)}
+        showOpen={localFiles && Boolean(selectedNode.path)}
       />
     );
-  }, [handlePlay, handleQueue, selectedNode]);
+  }, [handleOpen, handlePlay, handleQueue, handleReveal, localFiles, selectedNode]);
 
   useEffect(() => {
     setContent(footerContent);
