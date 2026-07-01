@@ -27,6 +27,22 @@ above, start both on alternate ports (and check they're free first, e.g.
 - Vite: `VITE_DAEMON_PORT=<daemon-port> npm run dev -- --port <port> --strictPort`
   (`VITE_DAEMON_PORT` points Vite's `/api` + `/auth` proxy at your daemon port).
 
+The daemon also binds a **Soulseek listen port**, which comes from the config
+file (`[server] portrange`), not from `WEB_PORT`. Two daemons sharing a config
+fight over that port, and the loser can never reach the Soulseek server — every
+login through it fails with "Could not reach the Soulseek server". So:
+
+- Never start a second daemon on the user's config
+  (`~/.config/psycheseek/config`). Besides the port fight, it shares the user's
+  Soulseek account (concurrent logins kick each other off the server) and races
+  config writes on exit.
+- Agent-started daemons must use an isolated config and data folder:
+  `WEB_PORT=<port> .venv/bin/python pseek -d -c <scratch-config> -u <scratch-datadir>`.
+  Seed the scratch config with `[server]` `login`/`passw` (the daemon refuses to
+  start without them) and a unique `portrange = (N, N)` — pick a free port
+  (e.g. in 2240–2399, check with `lsof -nP -iTCP:<N> -sTCP:LISTEN`) rather than
+  copying a port number from an example.
+
 ## Coding Style & Naming Conventions
 
 - Python is the only language for core logic; follow PEP 8 with a 120-character
