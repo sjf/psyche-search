@@ -47,3 +47,6 @@ build-aux/windows/build/
 # Ignore portable files
 portable/
 .venv
+
+# Ignore local test credentials
+.creds

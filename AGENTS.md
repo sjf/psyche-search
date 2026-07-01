@@ -27,21 +27,58 @@ above, start both on alternate ports (and check they're free first, e.g.
 - Vite: `VITE_DAEMON_PORT=<daemon-port> npm run dev -- --port <port> --strictPort`
   (`VITE_DAEMON_PORT` points Vite's `/api` + `/auth` proxy at your daemon port).
 
-The daemon also binds a **Soulseek listen port**, which comes from the config
-file (`[server] portrange`), not from `WEB_PORT`. Two daemons sharing a config
-fight over that port, and the loser can never reach the Soulseek server — every
-login through it fails with "Could not reach the Soulseek server". So:
+### Test daemons (multiple can coexist)
 
-- Never start a second daemon on the user's config
-  (`~/.config/psycheseek/config`). Besides the port fight, it shares the user's
-  Soulseek account (concurrent logins kick each other off the server) and races
-  config writes on exit.
-- Agent-started daemons must use an isolated config and data folder:
-  `WEB_PORT=<port> .venv/bin/python pseek -d -c <scratch-config> -u <scratch-datadir>`.
-  Seed the scratch config with `[server]` `login`/`passw` (the daemon refuses to
-  start without them) and a unique `portrange = (N, N)` — pick a free port
-  (e.g. in 2240–2399, check with `lsof -nP -iTCP:<N> -sTCP:LISTEN`) rather than
-  copying a port number from an example.
+A daemon instance owns three exclusive resources. Give every instance its own
+copy of each, and any number of test daemons can run side by side:
+
+1. **A config + data folder** (`-c <config> -u <datadir>`). Never point two
+   daemons (or two sessions) at the same config: the daemon rewrites the file
+   on exit and after a successful web login, so concurrent owners corrupt each
+   other. Never start a second daemon on the human's config
+   (`~/.config/psycheseek/config`). Create a fresh directory per daemon and
+   seed the config only while that daemon is stopped.
+2. **A Soulseek listen port** (`[server] portrange = (N, N)` in the config,
+   independent of `WEB_PORT`). When two daemons want the same port, the loser
+   can never reach the Soulseek server: it loops logging "Cannot listen on
+   port N" and every login through it fails with "Could not reach the Soulseek
+   server". The fight is intermittent — a reconnect releases the port for a
+   few seconds and the other daemon steals it — so it can look like a code
+   bug. Probe for a free port at launch; never copy one from an example.
+3. **A Soulseek account** (`[server] login`/`passw`; the daemon refuses to
+   start without them). Most test daemons don't need to be online: seed
+   deliberately wrong credentials (any taken username + wrong password) — the
+   startup login fails harmlessly and the daemon idles offline while the web
+   UI and API still work. When a daemon genuinely needs to be online, use one
+   of the designated test accounts in `.creds` at the repo root (untracked;
+   `username/password` per line, ask the human if it's missing), and accept
+   that only one daemon can be online per account at a time — the
+   server allows one session per account, and a second login kicks the first
+   offline. Do NOT register new Soulseek accounts (logging in with an unused
+   username silently creates one) — and never use the human's real account in
+   a test daemon.
+
+Launch recipe:
+
+```bash
+free_port() { local p=$1; while lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null; do p=$((p + 1)); done; echo "$p"; }
+
+DIR=$(mktemp -d)                                  # or a session-scratchpad subdir
+SLSK_PORT=$(free_port $((2300 + RANDOM % 90)))    # random base to avoid cross-session collisions
+WEB_PORT=$(free_port $((7040 + RANDOM % 50)))
+
+cat > "$DIR/config" <<EOF
+[server]
+login = <see account rules above>
+passw = <see account rules above>
+portrange = ($SLSK_PORT, $SLSK_PORT)
+EOF
+
+WEB_PORT=$WEB_PORT WEB_HOST=127.0.0.1 .venv/bin/python pseek -d -c "$DIR/config" -u "$DIR/data"
+```
+
+Shut down your own daemon by PID (`kill <pid>`). Never `pkill -f pseek` — that
+kills other sessions' daemons and the human's.
 
 ## Coding Style & Naming Conventions
 
