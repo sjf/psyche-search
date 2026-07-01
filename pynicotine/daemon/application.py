@@ -47,6 +47,11 @@ class Application:
     def run(self):
         core.start()
 
+        if core.portmapper is not None:
+            core.portmapper.warm_up(
+                config.sections["server"]["portrange"][0],
+                config.sections["server"]["interface"])
+
         # Re-log the last user into Soulseek without prompting, so the daemon
         # stays signed in and sharing in the background without the web UI.
         if not config.need_config():

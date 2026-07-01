@@ -208,9 +208,10 @@ class NATPMP(BaseImplementation):
 class UPnP(BaseImplementation):
     """Implementation of the UPnP protocol."""
 
-    __slots__ = ("_service",)
+    __slots__ = ("_service", "_cached_service", "_cache_expires_at")
 
     NAME = "UPnP"
+    SERVICE_CACHE_TTL = 600  # SSDP discovery takes many seconds; reuse its outcome for a while
     USER_AGENT = (
         f"Python/{sys.version.split()[0]} "
         "UPnP/2.0 "
@@ -419,6 +420,20 @@ class UPnP(BaseImplementation):
     def __init__(self):
         super().__init__()
         self._service = None
+        self._cached_service = None
+        self._cache_expires_at = None
+
+    def _find_service_cached(self):
+
+        now = time.monotonic()
+
+        if self._cache_expires_at is not None and now < self._cache_expires_at:
+            return self._cached_service
+
+        self._cached_service = self._find_service(self.local_ip_address)
+        self._cache_expires_at = now + self.SERVICE_CACHE_TTL
+
+        return self._cached_service
 
     @staticmethod
     def _find_service(private_ip):
@@ -515,7 +530,7 @@ class UPnP(BaseImplementation):
         """
 
         # Find router
-        self._service = self._find_service(self.local_ip_address)
+        self._service = self._find_service_cached()
 
         if not self._service:
             raise PortmapError(_("No UPnP devices found"))
@@ -689,6 +704,39 @@ class PortMapper:
         self._upnp.set_port(port, local_ip_address)
 
         self._has_port = (port is not None)
+
+    def warm_up(self, port, interface_name=""):
+        """Map the listen port before any server connection exists.
+
+        Primes the slow router discovery (and on capable networks the mapping
+        itself), so the blocking mapping performed on login success returns
+        quickly instead of stalling the login for many seconds.
+        """
+
+        if not config.sections["server"]["upnp"] or not port:
+            return
+
+        Thread(target=self._warm_up, args=(port, interface_name), name="PortmapWarmup", daemon=True).start()
+
+    def _warm_up(self, port, interface_name):
+
+        local_ip_address = None
+
+        if interface_name:
+            from pynicotine.slskproto import NetworkInterfaces
+            local_ip_address = NetworkInterfaces.get_interface_address(interface_name)
+        else:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as local_socket:
+                # No packets are sent; this just selects the default-route address
+                # (macOS requires a non-zero port)
+                local_socket.connect_ex(("10.255.255.255", 1))
+                local_ip_address = local_socket.getsockname()[0]
+
+        if not local_ip_address:
+            return
+
+        self.set_port(port, local_ip_address)
+        self.add_port_mapping(blocking=True)  # already on a worker thread
 
     def add_port_mapping(self, blocking=False):
 
