@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from pynicotine.config import config
+from pynicotine.core import core
 from pynicotine.external.tinytag import TinyTag
 from pynicotine.utils import encode_path
 
@@ -106,6 +107,13 @@ class DaemonAPI:
             capabilities = {"local_files": self._local_files}
             session = self._get_session(request)
             if not session:
+                # The login page is about to be shown. Map the listen port now
+                # (no-op if already mapped), so it's ready by the time the user
+                # has typed their credentials and the login announces us.
+                if core.portmapper is not None:
+                    core.portmapper.warm_up(
+                        config.sections["server"]["portrange"][0],
+                        config.sections["server"]["interface"])
                 return JSONResponse({"authenticated": False, "capabilities": capabilities})
             return JSONResponse({
                 "authenticated": True,

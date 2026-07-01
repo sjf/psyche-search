@@ -232,6 +232,11 @@ class Core:
 
     def _quit(self):
 
+        if self.portmapper is not None:
+            # The mapping is kept alive across server disconnects; the
+            # application quitting is what actually retires it
+            self.portmapper.remove_port_mapping(blocking=True)
+
         config.write_configuration()
 
         log.add(_("Quit %(program)s %(version)s!"), {

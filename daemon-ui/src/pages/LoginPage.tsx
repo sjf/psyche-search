@@ -94,9 +94,7 @@ export default function LoginPage() {
             </label>
           ) : null}
           {submitting ? (
-            <div className="login-info">
-              Contacting the Soulseek server… this can take up to a minute.
-            </div>
+            <div className="login-info">Contacting the Soulseek server…</div>
           ) : shownError ? (
             <div className="login-error">{shownError}</div>
           ) : null}

@@ -1145,6 +1145,13 @@ class NetworkThread(Thread):
 
         self._portmapper = msg.portmapper
 
+        if self._portmapper is not None:
+            # Map the listen port as soon as it's bound (non-blocking). The mapping
+            # follows the daemon lifecycle: it's kept alive by the renewal timer
+            # across server disconnects, and removed when the application quits.
+            self._portmapper.set_port(self._listen_port, self._local_ip_address)
+            self._portmapper.add_port_mapping()
+
         self._manual_server_disconnect = False
         self._manual_server_reconnect = False
         self._server_timeout_time = None
@@ -1240,14 +1247,7 @@ class NetworkThread(Thread):
 
         elif msg_class is Login:
             if msg.success:
-                # Ensure listening port is open
                 msg.local_address = self._user_addresses[self._server_username]
-                local_ip_address, port = msg.local_address
-
-                if self._portmapper is not None:
-                    self._portmapper.set_port(port, local_ip_address)
-                    self._portmapper.add_port_mapping(blocking=True)
-
                 msg.username = self._server_username
                 msg.server_address = self._server_address
 
@@ -1441,10 +1441,8 @@ class NetworkThread(Thread):
 
         self._close_listen_socket()
 
-        if self._portmapper is not None:
-            self._portmapper.remove_port_mapping(blocking=True)
-            self._portmapper.set_port(port=None, local_ip_address=None)
-            self._portmapper = None
+        # The port mapping is deliberately kept alive across server disconnects
+        # (renewed on a timer); it's removed when the application quits.
 
         self._parent_conn = None
         self._potential_parents.clear()

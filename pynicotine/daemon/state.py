@@ -30,10 +30,10 @@ SEARCH_MAX_DURATION = 180  # ... or once this many seconds pass since it started
 SEARCH_SAVE_INTERVAL = 4  # seconds between disk writes for an actively-updating search
 SEARCH_SORT_KEYS = ("user", "speed", "folder", "file", "size", "attributes")
 
-# A login round-trip can legitimately take a long time: waiting out a pending
-# reconnect-backoff timer (up to ~15s), the TCP connect, and a blocking UPnP
-# port mapping that runs before the login response is surfaced (~10s observed).
-LOGIN_TIMEOUT = 45
+# A login that goes through a reconnect can wait out the network thread's
+# short retry timer (~5s) on top of the TCP connect and server round-trip.
+# Port mapping is no longer part of the login path.
+LOGIN_TIMEOUT = 20
 
 
 def compute_search_state(entry, now, max_results=0):

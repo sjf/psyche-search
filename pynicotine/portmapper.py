@@ -208,17 +208,9 @@ class NATPMP(BaseImplementation):
 class UPnP(BaseImplementation):
     """Implementation of the UPnP protocol."""
 
-    __slots__ = ("_service", "_cached_service", "_cache_expires_at")
+    __slots__ = ("_service",)
 
     NAME = "UPnP"
-
-    # SSDP discovery takes many seconds, so mapping requests reuse its outcome.
-    # The renewal timer forces a rediscovery every PortMapper.RENEWAL_INTERVAL
-    # (2 hours), keeping the cache warm for as long as a mapping is active; the
-    # TTL sits above that interval and only bounds staleness once renewals stop
-    # (e.g. while disconnected). A stale entry that fails is also rediscovered
-    # on the spot, see add_port_mapping().
-    SERVICE_CACHE_TTL = 10800
     USER_AGENT = (
         f"Python/{sys.version.split()[0]} "
         "UPnP/2.0 "
@@ -427,24 +419,6 @@ class UPnP(BaseImplementation):
     def __init__(self):
         super().__init__()
         self._service = None
-        self._cached_service = None
-        self._cache_expires_at = None
-
-    def _find_service_cached(self):
-        """Return (service, from_cache)."""
-
-        now = time.monotonic()
-
-        if self._cache_expires_at is not None and now < self._cache_expires_at:
-            return self._cached_service, True
-
-        self._cached_service = self._find_service(self.local_ip_address)
-        self._cache_expires_at = now + self.SERVICE_CACHE_TTL
-
-        return self._cached_service, False
-
-    def invalidate_service_cache(self):
-        self._cache_expires_at = None
 
     @staticmethod
     def _find_service(private_ip):
@@ -541,7 +515,7 @@ class UPnP(BaseImplementation):
         """
 
         # Find router
-        self._service, from_cache = self._find_service_cached()
+        self._service = self._find_service(self.local_ip_address)
 
         if not self._service:
             raise PortmapError(_("No UPnP devices found"))
@@ -550,25 +524,13 @@ class UPnP(BaseImplementation):
         log.add_debug("UPnP: Trying to redirect external WAN port %s TCP => %s port %s TCP",
                       (self.port, self.local_ip_address, self.port))
 
-        try:
-            error_code, error_description = self._request_port_mapping(
-                public_port=self.port,
-                private_ip=self.local_ip_address,
-                private_port=self.port,
-                mapping_description="NicotinePlus",
-                lease_duration=lease_duration
-            )
-
-        except Exception:
-            if not from_cache:
-                raise
-
-            # Cached router details no longer work (router replaced/readdressed);
-            # rediscover and retry once
-            log.add_debug("UPnP: Cached router details are stale, rediscovering")
-            self.invalidate_service_cache()
-            self.add_port_mapping(lease_duration)
-            return
+        error_code, error_description = self._request_port_mapping(
+            public_port=self.port,
+            private_ip=self.local_ip_address,
+            private_port=self.port,
+            mapping_description="NicotinePlus",
+            lease_duration=lease_duration
+        )
 
         if error_code == "725" and lease_duration > 0:
             log.add_debug("UPnP: Router requested permanent lease duration")
@@ -716,14 +678,7 @@ class PortMapper:
 
     def _start_renewal_timer(self):
         self._cancel_renewal_timer()
-        self._timer = events.schedule(delay=self.RENEWAL_INTERVAL, callback=self._renew_port_mapping)
-
-    def _renew_port_mapping(self):
-        # Rediscover the router on every renewal, so the discovery cache stays
-        # fresh (and blocking mapping requests stay fast) for as long as a
-        # mapping is being renewed
-        self._upnp.invalidate_service_cache()
-        self.add_port_mapping()
+        self._timer = events.schedule(delay=self.RENEWAL_INTERVAL, callback=self.add_port_mapping)
 
     def _cancel_renewal_timer(self):
         events.cancel_scheduled(self._timer)
@@ -736,14 +691,18 @@ class PortMapper:
         self._has_port = (port is not None)
 
     def warm_up(self, port, interface_name=""):
-        """Map the listen port before any server connection exists.
+        """Ensure the listen port is mapped before any server connection exists.
 
-        Primes the slow router discovery (and on capable networks the mapping
-        itself), so the blocking mapping performed on login success returns
-        quickly instead of stalling the login for many seconds.
+        Called at daemon startup and when the web login page is shown, so the
+        mapping is in place by the time a login announces us to the network.
+        Safe to call repeatedly: it's a no-op while a mapping is active or in
+        progress.
         """
 
         if not config.sections["server"]["upnp"] or not port:
+            return
+
+        if self._active_implementation is not None or self._is_mapping_port:
             return
 
         Thread(target=self._warm_up, args=(port, interface_name), name="PortmapWarmup", daemon=True).start()
