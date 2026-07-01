@@ -16,10 +16,11 @@ from pynicotine.logfacility import log
 
 
 class Application:
-    __slots__ = ("_state", "_web_server", "_web_thread")
+    __slots__ = ("_state", "_web_server", "_web_thread", "_local_files")
 
-    def __init__(self):
+    def __init__(self, local_files=False):
         self._state = DaemonState()
+        self._local_files = local_files
         self._web_server = None
         self._web_thread = None
 
@@ -77,7 +78,7 @@ class Application:
             return False
 
         try:
-            app = create_app(self._state)
+            app = create_app(self._state, local_files=self._local_files)
             reload_enabled = os.environ.get("WEB_RELOAD", "").lower() in {"1", "true", "yes", "on"}
             uv_config = uvicorn.Config(
                 app,

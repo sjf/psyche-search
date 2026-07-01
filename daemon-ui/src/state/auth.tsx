@@ -6,6 +6,7 @@ interface AuthContextValue {
   status: AuthStatus;
   username: string;
   error: string;
+  localFiles: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
+  const [localFiles, setLocalFiles] = useState(false);
 
   const refresh = async () => {
     try {
@@ -30,7 +32,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUsername("");
         return;
       }
-      const data = (await response.json()) as { authenticated?: boolean; username?: string };
+      const data = (await response.json()) as {
+        authenticated?: boolean;
+        username?: string;
+        capabilities?: { local_files?: boolean };
+      };
+      setLocalFiles(Boolean(data.capabilities?.local_files));
       if (data.authenticated) {
         setStatus("authenticated");
         setUsername(data.username || "");
@@ -110,8 +117,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const value = useMemo(
-    () => ({ status, username, error, login, logout, refresh }),
-    [status, username, error]
+    () => ({ status, username, error, localFiles, login, logout, refresh }),
+    [status, username, error, localFiles]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

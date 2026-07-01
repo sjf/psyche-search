@@ -73,6 +73,10 @@ def check_arguments():
         help=_("start the program in daemon mode with a web UI")
     )
     parser.add_argument(
+        "-D", "--desktop", action="store_true",
+        help=_("start the web UI inside a native desktop window")
+    )
+    parser.add_argument(
         "-v", "--version", action="version", version=f"{__application_name__} {__version__}",
         help=_("display version and exit")
     )
@@ -99,10 +103,11 @@ def check_arguments():
     core.cli_listen_port = args.port
     core.cli_rescanning = args.rescan
 
-    if not args.headless and not args.daemon and not args.rescan:
+    if not args.headless and not args.daemon and not args.desktop and not args.rescan:
         args.daemon = True
 
-    return args.headless, args.daemon, args.hidden, args.ci_mode, args.isolated, args.rescan, multi_instance
+    return (args.headless, args.daemon, args.desktop, args.hidden, args.ci_mode, args.isolated,
+            args.rescan, multi_instance)
 
 
 def check_python_version():
@@ -197,7 +202,7 @@ def run():
     set_up_python()
     rename_process(b"nicotine")
 
-    headless, daemon, hidden, ci_mode, isolated_mode, rescan, multi_instance = check_arguments()
+    headless, daemon, desktop, hidden, ci_mode, isolated_mode, rescan, multi_instance = check_arguments()
     error = check_python_version()
 
     if error:
@@ -205,10 +210,10 @@ def run():
         return 1
 
     disabled_components = None
-    if headless or daemon:
+    if headless or daemon or desktop:
         disabled_components = {"now_playing"}
 
-    if daemon:
+    if daemon or desktop:
         enabled_components = {
             "error_handler", "signal_handler", "portmapper", "network_thread", "shares", "users",
             "notifications", "network_filter", "statistics", "port_checker", "update_checker",
@@ -239,6 +244,10 @@ def run():
 
     if rescan:
         return rescan_shares()
+
+    if desktop:
+        from pynicotine import desktop as application
+        return application.run()
 
     if daemon:
         from pynicotine import daemon as application

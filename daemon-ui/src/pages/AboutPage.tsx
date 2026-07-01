@@ -10,7 +10,7 @@ export default function AboutPage() {
           </span>
           <div>
             <h1>About</h1>
-            <p className="page-subtitle">Psyche Seek is a Soulseek client you run from a browser.</p>
+            <p className="page-subtitle">PsycheSeek is a Soulseek client you run from a browser.</p>
           </div>
         </div>
       </header>

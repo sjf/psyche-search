@@ -8,6 +8,8 @@ import mimetypes
 import os
 import re
 import secrets
+import subprocess
+import sys
 import time
 
 from fastapi import APIRouter, FastAPI, Form, HTTPException, Request, Response
@@ -20,8 +22,9 @@ from pynicotine.utils import encode_path
 
 
 class DaemonAPI:
-    def __init__(self, state):
+    def __init__(self, state, local_files=False):
         self.state = state
+        self._local_files = local_files
         self._session_cookie = "nicotine_session"
         self._session_ttl = 60 * 60 * 24 * 30
         self._session_secret = None
@@ -64,10 +67,15 @@ class DaemonAPI:
 
         @app.get("/auth/me")
         def auth_me(request: Request):
+            capabilities = {"local_files": self._local_files}
             session = self._get_session(request)
             if not session:
-                return JSONResponse({"authenticated": False})
-            return JSONResponse({"authenticated": True, "username": session["username"]})
+                return JSONResponse({"authenticated": False, "capabilities": capabilities})
+            return JSONResponse({
+                "authenticated": True,
+                "username": session["username"],
+                "capabilities": capabilities
+            })
 
         @api.get("/status")
         def status():
@@ -339,9 +347,39 @@ class DaemonAPI:
                 self.state.set_download_override(download_user, download_path, new_path)
             return Response(status_code=204)
 
+        @api.post("/files/reveal")
+        def reveal_file(path: str = Form("")):
+            if not self._local_files:
+                raise HTTPException(status_code=403, detail="Local file access disabled")
+            resolved_path = self._resolve_media_path(path)
+            if not resolved_path:
+                raise HTTPException(status_code=403, detail="Path not allowed")
+            if not os.path.exists(resolved_path):
+                raise HTTPException(status_code=404, detail="File not found")
+            try:
+                self._reveal_in_file_manager(resolved_path)
+            except OSError as error:
+                raise HTTPException(status_code=500, detail=str(error)) from error
+            return Response(status_code=204)
+
+        @api.post("/files/open")
+        def open_file(path: str = Form("")):
+            if not self._local_files:
+                raise HTTPException(status_code=403, detail="Local file access disabled")
+            resolved_path = self._resolve_media_path(path)
+            if not resolved_path:
+                raise HTTPException(status_code=403, detail="Path not allowed")
+            if not os.path.exists(resolved_path):
+                raise HTTPException(status_code=404, detail="File not found")
+            try:
+                self._open_in_default_app(resolved_path)
+            except OSError as error:
+                raise HTTPException(status_code=500, detail=str(error)) from error
+            return Response(status_code=204)
+
         app.include_router(api)
 
-        web_ui_root = "daemon-ui/dist"
+        web_ui_root = self._web_ui_root()
         assets_dir = os.path.join(web_ui_root, "assets")
         if os.path.isdir(assets_dir):
             app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
@@ -358,6 +396,33 @@ class DaemonAPI:
             return FileResponse(os.path.join(web_ui_root, "index.html"))
 
         return app
+
+    @staticmethod
+    def _web_ui_root():
+        if getattr(sys, "frozen", False):
+            base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+        else:
+            base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        return os.path.join(base, "daemon-ui", "dist")
+
+    @staticmethod
+    def _reveal_in_file_manager(path_value):
+        if sys.platform == "darwin":
+            subprocess.run(["open", "-R", path_value], check=False)
+        elif sys.platform == "win32":
+            subprocess.run(["explorer", "/select,", os.path.normpath(path_value)], check=False)
+        else:
+            target = path_value if os.path.isdir(path_value) else os.path.dirname(path_value)
+            subprocess.run(["xdg-open", target], check=False)
+
+    @staticmethod
+    def _open_in_default_app(path_value):
+        if sys.platform == "darwin":
+            subprocess.run(["open", path_value], check=False)
+        elif sys.platform == "win32":
+            os.startfile(path_value)  # pylint: disable=no-member
+        else:
+            subprocess.run(["xdg-open", path_value], check=False)
 
     @staticmethod
     def _credentials_match(username, password, config_user, config_pass):
@@ -686,5 +751,5 @@ class DaemonAPI:
 
 
 
-def create_app(state):
-    return DaemonAPI(state).create_app()
+def create_app(state, local_files=False):
+    return DaemonAPI(state, local_files=local_files).create_app()
