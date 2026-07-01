@@ -31,12 +31,10 @@
   mirroring the feature area.
 - Name test files `test_*.py` to match discovery expectations.
 
-## Commit & Pull Request Guidelines
+## Commit & Mainline Merge Guidelines
 
 - Recent commits favor short, imperative summaries with optional scope prefixes,
   e.g. `GUI: strip whitespace from more text entries` or
   `dialogs/roomlist.py: stricter validation for room names`.
 - Translation updates are typically labeled `Translated using Weblate (...)`.
-- No explicit PR template is present; include a concise problem/solution
-  description, list tests run, and attach screenshots for UI changes when
-  applicable.
+- This repo does not use pull requests; merge changes directly to `main`.
