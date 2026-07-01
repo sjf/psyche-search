@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api";
 import DirectoriesModal from "../components/DirectoriesModal";
@@ -99,9 +100,14 @@ export default function SettingsPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>Settings</h1>
-          <p className="page-subtitle">Account details and session controls.</p>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <Settings size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>Settings</h1>
+            <p className="page-subtitle">Account details and session controls.</p>
+          </div>
         </div>
       </header>
 

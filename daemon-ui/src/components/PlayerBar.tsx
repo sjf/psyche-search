@@ -59,17 +59,30 @@ export default function PlayerBar() {
     <div className="player-bar">
       {content && <div className="player-actions">{content}</div>}
       <div className="player-info">
-        <a className="player-title" href={linkTarget}>
-          {displayTitle}
-        </a>
+        <span className={`eq${currentTrack && isPlaying ? " eq-playing" : ""}`} aria-hidden="true">
+          <span className="eq-bar" />
+          <span className="eq-bar" />
+          <span className="eq-bar" />
+          <span className="eq-bar" />
+        </span>
+        <div className="player-info-text">
+          {currentTrack && <span className="now-playing-tag">Now Playing</span>}
+          <a className="player-title" href={linkTarget}>
+            {displayTitle}
+          </a>
+        </div>
       </div>
       <div className="player-controls-row">
         <div className="player-controls">
           <button type="button" className="player-button icon-button" onClick={skipPrevious}>
             <SkipBack size={16} strokeWidth={1.6} />
           </button>
-          <button type="button" className="player-button icon-button" onClick={toggle}>
-            {isPlaying ? <Pause size={16} strokeWidth={1.6} /> : <Play size={16} strokeWidth={1.6} />}
+          <button
+            type="button"
+            className="player-button icon-button player-button-primary"
+            onClick={toggle}
+          >
+            {isPlaying ? <Pause size={16} strokeWidth={1.9} /> : <Play size={16} strokeWidth={1.9} />}
           </button>
           <button type="button" className="player-button icon-button" onClick={skipNext}>
             <SkipForward size={16} strokeWidth={1.6} />

@@ -1,4 +1,4 @@
-import { Download, FileText, Folder, Music2 } from "lucide-react";
+import { Download, FileText, Folder, Music2, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
@@ -362,8 +362,13 @@ export default function SearchResultsPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>Search Results</h1>
+        <div className="page-title-row">
+          <span className="page-icon">
+            <Search size={20} strokeWidth={1.7} />
+          </span>
+          <div>
+            <h1>Search Results</h1>
+          </div>
         </div>
       </header>
 
