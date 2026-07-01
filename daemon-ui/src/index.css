@@ -1187,6 +1187,16 @@ tbody tr:hover td:first-child {
   align-items: center;
   gap: 12px;
 }
+.file-actions-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text-dim);
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+}
 .file-actions-title {
   font-weight: 600;
   color: var(--text);

@@ -1,5 +1,7 @@
-import { ExternalLink, FolderOpen, Play, Trash2, X } from "lucide-react";
+import { ExternalLink, FileText, FolderOpen, Play, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+
+const AUDIO_EXTENSIONS = /\.(mp3|flac|ogg|opus|wav|aac|m4a|wma|alac|aiff|ape)$/i;
 
 interface FileActionBarProps {
   fileName: string;
@@ -112,21 +114,31 @@ export default function FileActionBar({
     };
   }, [fileName, metadata]);
 
+  const isAudio = AUDIO_EXTENSIONS.test(fileName);
+
   return (
     <div className="file-actions">
       <div className="file-actions-left">
-        <button
-          type="button"
-          className="outline-button icon-button player-button"
-          onClick={onPlay}
-          aria-label="Play"
-          disabled={disablePlay}
-        >
-          <Play size={16} strokeWidth={1.6} />
-        </button>
-        <button type="button" className="outline-button" onClick={onQueue} disabled={disableQueue}>
-          Queue
-        </button>
+        {isAudio ? (
+          <>
+            <button
+              type="button"
+              className="outline-button icon-button player-button"
+              onClick={onPlay}
+              aria-label="Play"
+              disabled={disablePlay}
+            >
+              <Play size={16} strokeWidth={1.6} />
+            </button>
+            <button type="button" className="outline-button" onClick={onQueue} disabled={disableQueue}>
+              Queue
+            </button>
+          </>
+        ) : (
+          <span className="file-actions-icon" aria-hidden="true">
+            <FileText size={18} strokeWidth={1.6} />
+          </span>
+        )}
         <div className="file-actions-info">
           <span className="file-actions-title">
             {displayTitle.main}
