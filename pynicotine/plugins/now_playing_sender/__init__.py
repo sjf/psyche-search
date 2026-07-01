@@ -1,7 +1,14 @@
 # SPDX-FileCopyrightText: 2020-2025 Nicotine+ Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from gi.repository import Gio
+try:
+    from gi.repository import Gio  # pylint: disable=import-error
+except ImportError:
+    # GObject Introspection is a Linux-only optional dependency. This plugin is
+    # only ever loaded on Linux (see pluginsystem._load_now_playing_sender); the
+    # guard keeps the module importable elsewhere (e.g. test discovery).
+    Gio = None
+
 from pynicotine.pluginsystem import BasePlugin
 
 
