@@ -34,18 +34,14 @@ build_shares() {
 }
 
 # Seed a minimal config on first run. If a config is already mounted, leave it
-# untouched. Credentials come from SLSK_USERNAME / SLSK_PASSWORD.
+# untouched. Credentials come from SLSK_USERNAME / SLSK_PASSWORD if set; if they
+# aren't, the config is seeded empty and you sign in via the web UI (the daemon
+# then saves the credentials back here for subsequent starts).
 if [ ! -f "$CONFIG_FILE" ]; then
-  if [ -z "${SLSK_USERNAME:-}" ] || [ -z "${SLSK_PASSWORD:-}" ]; then
-    echo "No config at $CONFIG_FILE and SLSK_USERNAME/SLSK_PASSWORD not set." >&2
-    echo "Set both env vars, or mount an existing config to $CONFIG_FILE." >&2
-    exit 1
-  fi
-
   cat > "$CONFIG_FILE" <<EOF
 [server]
-login = ${SLSK_USERNAME}
-passw = ${SLSK_PASSWORD}
+login = ${SLSK_USERNAME:-}
+passw = ${SLSK_PASSWORD:-}
 
 [transfers]
 downloaddir = /downloads
@@ -53,8 +49,17 @@ incompletedir = /incomplete
 shared = $(build_shares)
 EOF
   chown pseek:pseek "$CONFIG_FILE"
-  echo "Seeded new config at $CONFIG_FILE (user: ${SLSK_USERNAME})."
+
+  if [ -n "${SLSK_USERNAME:-}" ] && [ -n "${SLSK_PASSWORD:-}" ]; then
+    echo "Seeded new config at $CONFIG_FILE (user: ${SLSK_USERNAME})."
+  else
+    echo "Seeded new config at $CONFIG_FILE with no credentials."
+    echo "The web UI will start — sign in there once and your Soulseek"
+    echo "credentials will be saved here and reused automatically."
+  fi
   echo "Shares: $(build_shares)"
 fi
 
-exec gosu pseek python pseek -c "$CONFIG_FILE" "$@"
+# -u keeps the data folder (share index, logs) on the mounted /config volume so
+# it survives container recreation instead of landing in the ephemeral home.
+exec gosu pseek python pseek -c "$CONFIG_FILE" -u "$DATA_HOME" "$@"
