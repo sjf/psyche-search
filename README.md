@@ -1,88 +1,125 @@
 <!--
+  SPDX-FileCopyrightText: 2026 Psyche Seek Contributors
   SPDX-FileCopyrightText: 2013-2025 Nicotine+ Contributors
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-# Nicotine+
+<p align="center">
+  <img src="assets/banner.svg" alt="Psyche Seek — a neon web control plane for Soulseek" width="100%">
+</p>
 
-<img src="data/icons/icon.svg" alt="Nicotine+ Logo" align="right"
- width="128" height="128">
+<p align="center">
+  <b>Psyche Seek</b> (<code>pseek</code>) is a self-hosted web app for finding and downloading music over the
+  <a href="https://www.slsknet.org/news/">Soulseek</a> network — built to run headless on your media server,
+  right next to the *arr stack.
+</p>
 
-Nicotine+ is a graphical client for the [Soulseek](https://www.slsknet.org/news/)
-peer-to-peer network.
+<p align="center">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
+  <img alt="React 19" src="https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-ff2e97?style=for-the-badge">
+</p>
 
-Nicotine+ aims to be a lightweight, pleasant, free and open source (FOSS)
-alternative to the official Soulseek client, while also providing a
-comprehensive set of features.
+---
 
-Nicotine+ is written in Python and uses GTK for its graphical user interface.
+## What is this?
 
-Check out the [screenshots](data/screenshots/SCREENSHOTS.md)
-and [source code](https://github.com/nicotine-plus/nicotine-plus).
+The *arr stack (Sonarr, Radarr, Lidarr…) automates almost everything on a home
+media server — but **music is the gap**. Lidarr can't touch Soulseek, which is
+where the rare, out-of-print and lossless releases actually live.
 
+**Psyche Seek fills that gap.** It's a brand-new **React + TypeScript** front-end
+and a small **FastAPI** daemon that turn a headless server's Soulseek connection
+into a clean, fast web app — search, download, browse and play, from any browser
+on your network. No desktop environment, no GTK, just a tab.
 
-## Download
+Under the hood it uses **[Nicotine+](https://github.com/nicotine-plus/nicotine-plus)**
+purely as the Soulseek protocol engine. Everything you see and touch is new.
 
-The current stable version of Nicotine+ is 3.3.10, released on March 10, 2025.
-See the [release notes](NEWS.md).
+> Think of it as **Lidarr's missing Soulseek companion**: park it next to Plex or
+> Jellyfin, point it at your download directory, and pull music straight into your
+> library.
 
-Downloads are available for:
+## Highlights
 
- - [GNU/Linux, *BSD, Haiku and Solaris](doc/DOWNLOADS.md#gnulinux-bsd-haiku-solaris)
- - [Windows](doc/DOWNLOADS.md#windows)
- - [macOS](doc/DOWNLOADS.md#macos)
+- 🔎 **Search** the Soulseek network with recent-search history and a filter syntax
+  (`minbitrate:`, `minfilesize:`, `isvbr`, …).
+- 🗂️ **Results** grouped by user and folder, with size, bitrate, encoding and
+  attributes — every column sortable, free slots surfaced, one-click downloads.
+- 👤 **Browse a user's whole share** straight from a result, and grab any folder.
+- ⬇️ **Downloads manager** — live progress and speed, pause / cancel, clear
+  completed, sort by any column.
+- 📁 **File browser** for your downloaded and shared directories: an expanding tree
+  with audio metadata (artist / title / album / year), rename, delete, and
+  configurable download + share folders.
+- ▶️ **Built-in player** that keeps playing as you move between pages (Spotify-style),
+  reads tags for artist/title/album, and lets you queue tracks — with an animated
+  canary-song equalizer while it plays.
+- 💬 **Chat** view for recently received messages.
+- ⚙️ **Settings** for your session, connection status and directories.
 
+## Design
 
-## Get Involved
+Psyche Seek ships a flat **"neon-wire" cyberpunk** look. The full design system —
+palette, typography and motion — is documented in **[DESIGN.md](DESIGN.md)**.
 
-If you feel like contributing to Nicotine+, there are several ways to get
-involved:
+## Architecture
 
- - [Issue Tracker](https://github.com/nicotine-plus/nicotine-plus/issues)
-     – Report a problem or suggest improvements
- - [Testing](doc/TESTING.md)
-     – Download the latest unstable build and help test Nicotine+
- - [Translations](doc/TRANSLATIONS.md)
-     – Translate Nicotine+ into another language with [Weblate](https://hosted.weblate.org/engage/nicotine-plus)
- - [Packaging](doc/PACKAGING.md)
-     – Package Nicotine+ for a distribution or operating system
- - [Development](doc/DEVELOPING.md)
-     – Implement bug fixes, enhancements or new features
- - [IRC Channel](https://web.libera.chat/?channel=#nicotine+)
-     – Chat in the #nicotine+ IRC channel on [Libera.Chat](https://libera.chat/)
+```
+┌──────────────────────────────┐
+│  daemon-ui/  React 19 + TS    │  Vite SPA — the entire UI
+└──────────────┬───────────────┘
+               │  /api  /auth   (REST + SPA served on :7007)
+┌──────────────┴───────────────┐
+│  pynicotine/daemon/  FastAPI  │  headless daemon (this project)
+└──────────────┬───────────────┘
+               │
+┌──────────────┴───────────────┐
+│  pynicotine/  Nicotine+ core  │  Soulseek protocol engine (dependency)
+└──────────────────────────────┘
+```
 
+- `daemon-ui/` — the React + TypeScript + Vite single-page app.
+- `pynicotine/daemon/` — a FastAPI daemon that exposes the REST API and serves the
+  built SPA on `127.0.0.1:7007`.
+- `pynicotine/` — the vendored **Nicotine+** core, used only as the Soulseek engine.
 
-## Where did the name Nicotine come from?
+## Quick start
 
-> I was in a geeky mood and was browsing bash.org's QDB.  
-I stumbled across this quote:  
->> **\<etc>** so tempting to release a product called 'nicotine' and wait for
->> the patches.  
->> **\<etc>** then i would have a reason to only apply one patch a day.
->> otherwise, i'm going against medical advise.  
->
-> So I thought what the hell and bluntly stole etc's idea.
+**Requirements:** Python 3 and Node.js.
 
-— <cite>Hyriand, former Nicotine maintainer, 2003</cite>
+```bash
+# 1. Bootstrap: creates .venv, installs deps, builds the web UI
+./build.sh
 
+# 2. Configure your Soulseek credentials in ~/.config/nicotine/config
+#    (the [server] section: login / passw)
 
-## Legal and Privacy
+# 3. Run the daemon (must use the venv Python)
+.venv/bin/python nicotine -d
+```
 
-The Nicotine+ Team does not collect any data used or stored by the client.
-Different policies may apply for data sent to the default Soulseek server,
-which is not operated by the Nicotine+ Team.
+Then open **http://localhost:7007** and sign in with your Soulseek credentials.
+On a server, put it behind your reverse proxy of choice.
 
-When connecting to the default Soulseek server, you agree to abide by the
-Soulseek [rules](https://www.slsknet.org/news/node/681) and
-[terms of service](https://www.slsknet.org/news/node/682).
+### Developing the UI
 
-Soulseek is an unencrypted protocol not intended for secure communication.
+Run the daemon for the API, then start Vite with hot-reload:
 
+```bash
+cd daemon-ui
+npm run dev        # http://localhost:5173, proxies /api and /auth → :7007
+```
 
-## Authors
+Edit `.tsx` files for instant HMR. Restart the daemon after Python changes.
+Lint with `npm run lint`; run backend tests with `python3 -m unittest`.
 
-Nicotine+ is free and open source software, released under the terms of the
-[GNU General Public License v3.0 or later](https://www.gnu.org/licenses/gpl-3.0-standalone.html).
-Nicotine+ exists thanks to its [authors](AUTHORS.md).
+## License
 
-© 2001–2025 Nicotine+, Nicotine and PySoulSeek Contributors
+Psyche Seek is free software, released under the
+[GNU General Public License v3.0 or later](https://www.gnu.org/licenses/gpl-3.0-standalone.html),
+inherited from Nicotine+.
+
+© 2026 Psyche Seek Contributors · © 2001–2025 Nicotine+, Nicotine and PySoulSeek Contributors
