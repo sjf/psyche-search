@@ -20,13 +20,6 @@ interface TreeResponse {
   truncated?: boolean;
 }
 
-function collectFiles(node: FileNode): FileNode[] {
-  if (node.type === "file") {
-    return [node];
-  }
-  return (node.children || []).flatMap(collectFiles);
-}
-
 interface ShareSummary {
   tracks: number;
   dirs: number;
@@ -166,13 +159,6 @@ function BrowseUserProfile({
       </div>
     </section>
   );
-}
-
-function hasUnloadedChildren(node: FileNode): boolean {
-  if (node.type === "dir" && node.children === undefined && node.has_children) {
-    return true;
-  }
-  return (node.children || []).some(hasUnloadedChildren);
 }
 
 // Fold freshly fetched nodes into what's already loaded: the server's listing
@@ -506,7 +492,7 @@ export default function UserBrowsePage() {
   }, [navigate]);
 
   const download = useCallback(
-    async (path: string, size: number, folderRoot?: string) => {
+    async (path: string, size: number) => {
       if (!path) {
         addToast("Download failed.", "error");
         return;
@@ -515,12 +501,32 @@ export default function UserBrowsePage() {
       params.set("user", username);
       params.set("path", path);
       params.set("size", String(size || 0));
-      if (folderRoot !== undefined) {
-        params.set("preserve_folder", "1");
-        params.set("folder_root", folderRoot);
-      }
       try {
         const response = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString()
+        });
+        addToast(response.ok ? "Download queued." : "Download failed.", response.ok ? "success" : "error");
+      } catch {
+        addToast("Download failed.", "error");
+      }
+    },
+    [addToast, username]
+  );
+
+  const downloadFolder = useCallback(
+    async (path: string) => {
+      if (!path) {
+        addToast("Download failed.", "error");
+        return;
+      }
+      const params = new URLSearchParams();
+      params.set("user", username);
+      params.set("path", path);
+      params.set("recurse", "1");
+      try {
+        const response = await fetch("/api/download-folder", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: params.toString()
@@ -567,33 +573,9 @@ export default function UserBrowsePage() {
             className="icon-button icon-button-small icon-button-plain"
             aria-label="Download folder"
             data-tooltip="Download folder"
-            onClick={async (event) => {
+            onClick={(event) => {
               event.stopPropagation();
-              let target = node;
-              if (hasUnloadedChildren(node)) {
-                try {
-                  const data = await fetchTree(String(node.path || node.id), true);
-                  if (data.status === "too_large") {
-                    addToast("Folder is too large to download at once.", "error");
-                    return;
-                  }
-                  if (data.status !== "ready" || !data.tree) {
-                    addToast("Download failed.", "error");
-                    return;
-                  }
-                  target = data.tree;
-                } catch {
-                  addToast("Download failed.", "error");
-                  return;
-                }
-              }
-              const files = collectFiles(target);
-              if (!files.length) {
-                addToast("No files to download.", "error");
-                return;
-              }
-              const folderRoot = String(node.path || "");
-              files.forEach((file) => download(String(file.path || ""), Number(file.size) || 0, folderRoot));
+              downloadFolder(String(node.path || node.id || ""));
             }}
           >
             <Download size={16} strokeWidth={1.6} />
@@ -602,7 +584,7 @@ export default function UserBrowsePage() {
       }
       return null;
     },
-    [addToast, download, fetchTree]
+    [download, downloadFolder]
   );
 
   // A pruned (truncated) listing only contains the loaded spine, so client-side

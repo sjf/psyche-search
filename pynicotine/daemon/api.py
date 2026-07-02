@@ -185,6 +185,22 @@ class DaemonAPI:
             self.state.request_download(user, path, size=size_value)
             return Response(status_code=204)
 
+        @api.post("/download-folder")
+        def download_folder(user: str = Form(""), path: str = Form(""), recurse: str = Form("1")):
+            if not user or not path:
+                raise HTTPException(status_code=400, detail="Missing user or path")
+            result = self.state.request_folder_download(
+                user, path, recurse=(recurse.strip().lower() not in {"0", "false", "no"})
+            )
+            if result.get("success"):
+                return Response(status_code=204)
+            reason = result.get("reason")
+            if reason == "not_found":
+                raise HTTPException(status_code=404, detail="Folder not found")
+            if reason == "not_loaded":
+                raise HTTPException(status_code=409, detail="User shares are not loaded")
+            raise HTTPException(status_code=503, detail="Could not queue folder download")
+
         @api.post("/downloads/clear-completed")
         def clear_completed_downloads():
             self.state.clear_completed_downloads()

@@ -1008,27 +1008,46 @@ class DaemonState:
             self._search_sort[term.casefold()] = {"key": key, "dir": direction}
         self._save_search_sort()
 
-    def request_download(self, username, virtual_path, size=0, folder_root=None):
-        events.invoke_main_thread(self._download_main_thread, username, virtual_path, size, folder_root)
+    def request_download(self, username, virtual_path, size=0):
+        events.invoke_main_thread(self._download_main_thread, username, virtual_path, size)
 
-    @staticmethod
-    def _get_folder_download_destination(username, virtual_path, folder_root):
-        folder_path = virtual_path.replace("/", "\\").rpartition("\\")[0]
-        if not folder_path:
-            return core.downloads.get_default_download_folder(username)
-        if folder_root:
-            return core.downloads.get_folder_destination(
-                username, folder_path, root_folder_path=folder_root.replace("/", "\\").rstrip("\\")
-            )
-        return os.path.join(core.downloads.get_default_download_folder(username), folder_path.replace("\\", os.sep))
-
-    def _download_main_thread(self, username, virtual_path, size, folder_root):
+    def _download_main_thread(self, username, virtual_path, size):
         if not username or not virtual_path:
             return
-        folder_path = None
-        if folder_root is not None:
-            folder_path = self._get_folder_download_destination(username, virtual_path, folder_root)
-        core.downloads.enqueue_download(username, virtual_path, folder_path=folder_path, size=size)
+        core.downloads.enqueue_download(username, virtual_path, size=size)
+
+    def request_folder_download(self, username, folder_path, recurse=True):
+        pending = {
+            "event": threading.Event(),
+            "success": False,
+            "reason": "timeout"
+        }
+        events.invoke_main_thread(self._download_folder_main_thread, username, folder_path, recurse, pending)
+        pending["event"].wait(timeout=3)
+        return pending
+
+    def _download_folder_main_thread(self, username, folder_path, recurse, pending):
+        try:
+            if not username or not folder_path or core.userbrowse is None:
+                pending["reason"] = "not_found"
+                return
+            browsed_user = core.userbrowse.users.get(username)
+            if browsed_user is None:
+                pending["reason"] = "not_loaded"
+                return
+            has_match = any(
+                True for _folder_path, _files in core.userbrowse.iter_matching_folders(
+                    folder_path, browsed_user=browsed_user, recurse=recurse
+                )
+            )
+            if not has_match:
+                pending["reason"] = "not_found"
+                return
+            core.userbrowse.download_folder(username, folder_path, recurse=recurse, check_num_files=False)
+            pending["success"] = True
+            pending["reason"] = ""
+        finally:
+            pending["event"].set()
 
     def pause_download(self, username, virtual_path):
         events.invoke_main_thread(self._pause_download_main_thread, username, virtual_path)
