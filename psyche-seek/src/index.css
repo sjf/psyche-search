@@ -1061,14 +1061,13 @@ tbody tr:hover td:first-child {
   color: var(--text-dim);
 }
 .downloads-file .downloads-added {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 11.5px;
   color: var(--text-dim);
   white-space: nowrap;
 }
 .downloads-status {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
+  font-family: var(--font-body);
   letter-spacing: 0.1em;
   color: var(--cyan);
   font-size: 12px;
@@ -1638,6 +1637,12 @@ tbody tr:hover td:first-child {
 
 .modal .mono {
   font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--cyan-soft);
+  word-break: break-all;
+}
+.modal .download-delete-path {
+  font-family: var(--font-body);
   font-size: 13px;
   color: var(--cyan-soft);
   word-break: break-all;

@@ -1,5 +1,6 @@
 import { Download, Pause, Play, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api";
 import FileActionBar from "../components/FileActionBar";
 import Modal from "../components/Modal";
@@ -56,9 +57,20 @@ function isPaused(status: string) {
   return status.toLowerCase() === "paused";
 }
 
-function formatQueuedAt(timestamp?: number) {
+function formatStatus(status: string) {
+  return isFinished(status) ? "done" : status;
+}
+
+function getQueuedAtDate(timestamp?: number) {
   if (!timestamp) {
     return "-";
+  }
+  return new Date(timestamp * 1000).toLocaleDateString();
+}
+
+function getQueuedAtTimestamp(timestamp?: number) {
+  if (!timestamp) {
+    return undefined;
   }
   return new Date(timestamp * 1000).toLocaleString();
 }
@@ -71,6 +83,7 @@ export default function DownloadsPage() {
   const [showRename, setShowRename] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [showDelete, setShowDelete] = useState(false);
+  const navigate = useNavigate();
   const { playTrack, enqueue } = usePlayer();
   const { setContent } = useFooter();
   const { addToast } = useToast();
@@ -168,6 +181,20 @@ export default function DownloadsPage() {
   };
 
   const sortArrow = sortDirection === "asc" ? "▲" : "▼";
+
+  const userLink = (user: string) => (
+    <button
+      type="button"
+      className="link-button"
+      title={`Browse ${user}'s files`}
+      onClick={(event) => {
+        event.stopPropagation();
+        navigate(`/user/${encodeURIComponent(user)}`);
+      }}
+    >
+      {user}
+    </button>
+  );
 
   const requestAction = async (action: "pause" | "resume" | "cancel" | "clear", item: DownloadItem) => {
     const virtualPath = item.virtual_path || item.path;
@@ -556,7 +583,7 @@ export default function DownloadsPage() {
             {groupedItems.flatMap((group) => {
               const groupHeader = group.isFolder ? (
                 <tr key={`${group.key}-group`} className="results-group downloads-group">
-                  <td className="downloads-user">{group.user}</td>
+                  <td className="downloads-user">{userLink(group.user)}</td>
                   <td className="downloads-path">{group.folder}</td>
                   <td></td>
                   <td></td>
@@ -577,7 +604,7 @@ export default function DownloadsPage() {
                     setSelectedItem(item);
                   }}
                 >
-                  <td className="downloads-user">{group.isFolder ? "" : item.user}</td>
+                  <td className="downloads-user">{group.isFolder ? "" : userLink(item.user)}</td>
                   <td className="downloads-path">{item.path}</td>
                   <td>{formatSize(item.size)}</td>
                   <td>
@@ -588,8 +615,10 @@ export default function DownloadsPage() {
                       <span>{getProgress(item)}%</span>
                     </div>
                   </td>
-                    <td><span className="downloads-status">{item.status}</span></td>
-                    <td className="downloads-added">{formatQueuedAt(item.queued_at)}</td>
+                    <td><span className="downloads-status">{formatStatus(item.status)}</span></td>
+                    <td className="downloads-added" title={getQueuedAtTimestamp(item.queued_at)}>
+                      {getQueuedAtDate(item.queued_at)}
+                    </td>
                     <td>
                       <div className="row-actions">
                         {!isFinished(item.status) && !isPaused(item.status) && (
@@ -597,6 +626,7 @@ export default function DownloadsPage() {
                             type="button"
                             className="icon-button"
                             aria-label="Pause"
+                            data-tooltip="Pause download"
                             onClick={(event) => {
                               event.stopPropagation();
                               requestAction("pause", item);
@@ -610,6 +640,7 @@ export default function DownloadsPage() {
                             type="button"
                             className="icon-button"
                             aria-label="Resume"
+                            data-tooltip="Resume download"
                             onClick={(event) => {
                               event.stopPropagation();
                               requestAction("resume", item);
@@ -621,8 +652,8 @@ export default function DownloadsPage() {
                         <button
                           type="button"
                           className="icon-button secondary-button"
-                          aria-label={isFinished(item.status) ? "Clear" : "Cancel"}
-                          title={isFinished(item.status) ? "Clear download" : "Cancel download"}
+                          aria-label={isFinished(item.status) ? "Remove download" : "Cancel download"}
+                          data-tooltip={isFinished(item.status) ? "Remove download" : "Cancel download"}
                           onClick={(event) => {
                             event.stopPropagation();
                             requestAction(isFinished(item.status) ? "clear" : "cancel", item);
@@ -686,7 +717,7 @@ export default function DownloadsPage() {
           </>
         }
       >
-        <div className="mono">{deletePath}</div>
+        <div className="download-delete-path">{deletePath}</div>
         <p>Delete this file from disk?</p>
       </Modal>
     </div>

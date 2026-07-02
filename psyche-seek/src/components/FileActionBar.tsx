@@ -192,8 +192,8 @@ export default function FileActionBar({
             type="button"
             className="icon-button ghost-button"
             onClick={onClear}
-            aria-label="Clear download"
-            title="Remove download"
+            aria-label="Remove download"
+            data-tooltip="Remove download"
           >
             <X size={16} strokeWidth={1.6} />
           </button>
