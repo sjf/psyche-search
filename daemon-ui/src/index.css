@@ -545,6 +545,52 @@ button:disabled {
 .icon-button svg {
   pointer-events: none;
 }
+.icon-button[data-tooltip] {
+  position: relative;
+}
+.icon-button[data-tooltip]::before,
+.icon-button[data-tooltip]::after {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 30;
+}
+.icon-button[data-tooltip]::before {
+  content: "";
+  border: 6px solid transparent;
+  border-top-color: rgba(19, 18, 32, 0.96);
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+}
+.icon-button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  background: rgba(19, 18, 32, 0.96);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  bottom: calc(100% + 13px);
+  box-shadow: 0 12px 30px -18px rgba(35, 224, 230, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  left: 50%;
+  line-height: 1;
+  max-width: 220px;
+  overflow: hidden;
+  padding: 8px 9px;
+  text-overflow: ellipsis;
+  transform: translate(-50%, 4px);
+  white-space: nowrap;
+}
+.icon-button[data-tooltip]:hover::before,
+.icon-button[data-tooltip]:hover::after,
+.icon-button[data-tooltip]:focus-visible::before,
+.icon-button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
 
 .icon-button-small {
   width: 28px;

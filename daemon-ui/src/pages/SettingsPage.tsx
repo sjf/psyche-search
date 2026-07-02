@@ -265,7 +265,7 @@ export default function SettingsPage() {
                 type="button"
                 className="icon-button dir-change"
                 aria-label="Change download folder"
-                title="Change download folder"
+                data-tooltip="Change download folder"
                 onClick={() => chooseDirectory("download", directories.download_dir)}
               >
                 <Pencil size={15} strokeWidth={1.8} />
@@ -283,7 +283,7 @@ export default function SettingsPage() {
                 type="button"
                 className="icon-button dir-change"
                 aria-label="Change incomplete folder"
-                title="Change incomplete folder"
+                data-tooltip="Change incomplete folder"
                 onClick={() => chooseDirectory("incomplete", directories.incomplete_dir)}
               >
                 <Pencil size={15} strokeWidth={1.8} />
@@ -298,7 +298,7 @@ export default function SettingsPage() {
                 type="button"
                 className="icon-button dir-change"
                 aria-label="Add shared folder"
-                title="Add shared folder"
+                data-tooltip="Add shared folder"
                 onClick={() => chooseDirectory("share", directories.download_dir)}
               >
                 <Plus size={16} strokeWidth={2} />
@@ -317,7 +317,7 @@ export default function SettingsPage() {
                       type="button"
                       className="icon-button dir-remove"
                       aria-label={`Remove ${dir}`}
-                      title="Remove shared folder"
+                      data-tooltip="Remove shared folder"
                       onClick={() => setConfirmRemove(dir)}
                     >
                       <X size={15} strokeWidth={1.9} />
