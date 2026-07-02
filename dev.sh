@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-if [ ! -d .venv ] || [ ! -d daemon-ui/node_modules ]; then
+if [ ! -d .venv ] || [ ! -d psyche-seek/node_modules ]; then
   ./build.sh
 fi
 
@@ -28,5 +28,5 @@ trap cleanup EXIT
 
 WEB_PORT="$WEB_PORT" .venv/bin/python pseek -d "$@" &
 
-cd daemon-ui
+cd psyche-seek
 VITE_DAEMON_PORT="$WEB_PORT" npm run dev -- --port "$VITE_PORT" --strictPort

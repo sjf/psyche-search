@@ -61,4 +61,4 @@ Text tiers run from `#ECEBF6` (primary) through `#A5A3C8` and `#6F6D97`
 - **Destructive actions confirm.** Removing a share, deleting a file, or any
   irreversible action opens a confirmation modal before it takes effect.
 
-The design tokens live in [`daemon-ui/src/index.css`](daemon-ui/src/index.css).
+The design tokens live in [`psyche-seek/src/index.css`](psyche-seek/src/index.css).

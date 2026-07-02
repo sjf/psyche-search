@@ -6,7 +6,7 @@
 relevant info (speed, progress, etc.).
 
 ## Current state
-- `daemon-ui/src/pages/UploadsPage.tsx` is a placeholder panel ("Uploads are not exposed in the daemon API yet").
+- `psyche-seek/src/pages/UploadsPage.tsx` is a placeholder panel ("Uploads are not exposed in the daemon API yet").
 - No `/api/uploads` endpoint in `pynicotine/daemon/api.py`.
 - `Sidebar.tsx` has **no** `/uploads` nav item (route exists in `App.tsx` but is unreachable via UI).
 - `application.py:_on_upload_finished` only logs; nothing is recorded in `DaemonState`.

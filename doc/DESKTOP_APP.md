@@ -29,7 +29,7 @@ No GTK is involved.
 |------|------|
 | `pynicotine/desktop/__init__.py` | Launcher: daemon thread, window, error dialogs, crash watcher. |
 | `build-aux/macos/desktop-launcher.py` | Frozen-app entry point. Calls `multiprocessing.freeze_support()` **before** touching `sys.argv`, then forces `--desktop`. |
-| `build-aux/macos/psyche-seek.spec` | Cross-platform PyInstaller spec (macOS `.app` / Windows `.exe`). Bundles `daemon-ui/dist` + pynicotine data; excludes GTK. |
+| `build-aux/macos/psyche-seek.spec` | Cross-platform PyInstaller spec (macOS `.app` / Windows `.exe`). Bundles `psyche-seek/dist` + pynicotine data; excludes GTK. |
 | `build-aux/macos/build-desktop.sh` | Local macOS build → `.app` + `.dmg`. |
 | `.github/workflows/desktop-release.yml` | CI: builds both OSes and cuts a draft release. |
 

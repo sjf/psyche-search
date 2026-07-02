@@ -4,8 +4,8 @@
 venv
 **/__pycache__
 **/*.pyc
-daemon-ui/node_modules
-daemon-ui/dist
+psyche-seek/node_modules
+psyche-seek/dist
 build
 dist
 *.egg-info

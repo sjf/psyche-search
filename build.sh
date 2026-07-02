@@ -8,7 +8,7 @@ fi
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 
-cd daemon-ui
+cd psyche-seek
 
 if [ ! -d node_modules ]; then
   npm install

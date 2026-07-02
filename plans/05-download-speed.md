@@ -26,7 +26,7 @@
 
 ## Step-by-step
 1. Add `speed` to the backend snapshot dict.
-2. Extract a shared `formatSpeed`/`formatSize` util (`daemon-ui/src/util/format.ts`) and reuse across pages.
+2. Extract a shared `formatSpeed`/`formatSize` util (`psyche-seek/src/util/format.ts`) and reuse across pages.
 3. Add the sortable Speed column to Downloads.
 4. Verify units against a real download.
 

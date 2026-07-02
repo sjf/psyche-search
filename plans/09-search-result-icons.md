@@ -10,7 +10,7 @@ folder, text file, generic file.
 - The **Files** tree already does open/closed folders (`FolderOpen`/`Folder`) — good reference.
 
 ## Frontend changes
-1. Extract a shared `fileIcon(name, {expanded}?)` helper into `daemon-ui/src/util/icons.tsx` and use it in both search pages and the Files tree:
+1. Extract a shared `fileIcon(name, {expanded}?)` helper into `psyche-seek/src/util/icons.tsx` and use it in both search pages and the Files tree:
    - **Audio** (`mp3|flac|ogg|opus|wav|aac|m4a|wma|alac|aiff|ape`) → `Music2`.
    - **Text** (`txt|nfo|md|log|cue|m3u|m3u8`) → `FileText`.
    - **Generic** (everything else) → `File`.

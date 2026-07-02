@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-- `pynicotine/` holds the core application code. The user-facing UI is the web front-end in `daemon-ui/`, served by the FastAPI daemon in `pynicotine/daemon/`; `pynicotine/desktop/` wraps that web UI in a native pywebview window. Headless logic lives in `pynicotine/headless/`. There is no GTK desktop UI.
+- `pynicotine/` holds the core application code. The user-facing UI is the web front-end in `psyche-seek/`, served by the FastAPI daemon in `pynicotine/daemon/`; `pynicotine/desktop/` wraps that web UI in a native pywebview window. Headless logic lives in `pynicotine/headless/`. There is no GTK desktop UI.
 - Tests live in `pynicotine/tests/` (`unit/` and `integration/`).
 - Assets and packaging metadata are under `data/` (icons, desktop files, man page).
 - Translation files are in `po/`, and developer docs are in `doc/`.
@@ -115,7 +115,7 @@ eventual exit, clobbering any reseeding you did in between). Never
 - Python is the only language for core logic; follow PEP 8 with a 120-character
   line length (see `setup.cfg`).
 - Use 4-space indentation and prefer descriptive, module-scoped names.
-- Core modules are grouped by feature (e.g., `pynicotine/daemon/`, `pynicotine/headless/`); the web UI is grouped by feature under `daemon-ui/`.
+- Core modules are grouped by feature (e.g., `pynicotine/daemon/`, `pynicotine/headless/`); the web UI is grouped by feature under `psyche-seek/`.
 - Keep dependencies minimal; standard library modules are preferred.
 
 ## Testing Guidelines

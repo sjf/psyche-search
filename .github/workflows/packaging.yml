@@ -128,7 +128,7 @@ jobs:
           python-version: "3.12"
 
       - name: Build web UI
-        working-directory: daemon-ui
+        working-directory: psyche-seek
         run: |
           npm ci
           npm run build
@@ -173,7 +173,7 @@ jobs:
           python-version: "3.12"
 
       - name: Build web UI
-        working-directory: daemon-ui
+        working-directory: psyche-seek
         run: |
           npm ci
           npm run build

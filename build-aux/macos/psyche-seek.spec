@@ -26,7 +26,7 @@ IS_WIN = sys.platform == "win32"
 ICON = os.path.join(SPEC_DIR, "icon.icns") if IS_MAC \
     else os.path.join(PROJECT_ROOT, "build-aux", "windows", "icon.ico")
 
-datas = [(os.path.join(PROJECT_ROOT, "daemon-ui", "dist"), "daemon-ui/dist")]
+datas = [(os.path.join(PROJECT_ROOT, "psyche-seek", "dist"), "psyche-seek/dist")]
 binaries = []
 hiddenimports = (
     collect_submodules("uvicorn")

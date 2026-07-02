@@ -21,4 +21,4 @@ Not covered here (cosmetic, not functional): app renaming to **NSEEK** and the s
 
 Key files referenced throughout:
 - Backend API: `pynicotine/daemon/api.py` · state: `pynicotine/daemon/state.py` · trees: `pynicotine/daemon/trees.py`
-- Frontend pages: `daemon-ui/src/pages/` · components: `daemon-ui/src/components/` · player/state: `daemon-ui/src/state/`
+- Frontend pages: `psyche-seek/src/pages/` · components: `psyche-seek/src/components/` · player/state: `psyche-seek/src/state/`

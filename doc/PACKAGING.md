@@ -67,7 +67,7 @@ short:
 
 ```sh
 # Build the web UI
-( cd daemon-ui && npm ci && npm run build )
+( cd psyche-seek && npm ci && npm run build )
 
 # Install build dependencies (macOS shown; on Windows use pythonnet
 # instead of pyobjc-framework-WebKit)

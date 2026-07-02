@@ -15,7 +15,7 @@ BUILD_DIR="$SCRIPT_DIR/build"
 APP_NAME="PsycheSeek"
 
 echo "==> Building React UI"
-( cd "$PROJECT_ROOT/daemon-ui" && npm install && npm run build )
+( cd "$PROJECT_ROOT/psyche-seek" && npm install && npm run build )
 
 echo "==> Setting up build virtualenv"
 VENV="$BUILD_DIR/venv"

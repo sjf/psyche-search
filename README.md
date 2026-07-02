@@ -98,7 +98,7 @@ palette, typography and motion — is documented in **[DESIGN.md](DESIGN.md)**.
 
 ```
 ┌──────────────────────────────┐
-│  daemon-ui/  React 19 + TS    │  Vite SPA — the entire UI
+│  psyche-seek/  React 19 + TS    │  Vite SPA — the entire UI
 └──────────────┬───────────────┘
                │  /api  /auth   (REST + SPA served on :7007)
 ┌──────────────┴───────────────┐
@@ -110,7 +110,7 @@ palette, typography and motion — is documented in **[DESIGN.md](DESIGN.md)**.
 └──────────────────────────────┘
 ```
 
-- `daemon-ui/` — the React + TypeScript + Vite single-page app.
+- `psyche-seek/` — the React + TypeScript + Vite single-page app.
 - `pynicotine/daemon/` — a FastAPI daemon that exposes the REST API and serves the
   built SPA on `127.0.0.1:7007`.
 - `pynicotine/` — the vendored **Nicotine+** core, used only as the Soulseek engine.
@@ -194,7 +194,7 @@ Notes:
 Run the daemon for the API, then start Vite with hot-reload:
 
 ```bash
-cd daemon-ui
+cd psyche-seek
 npm run dev        # http://localhost:5173, proxies /api and /auth → :7007
 ```
 

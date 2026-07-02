@@ -4,10 +4,10 @@
 FROM node:22-slim AS ui-build
 
 WORKDIR /ui
-COPY daemon-ui/package.json daemon-ui/package-lock.json ./
+COPY psyche-seek/package.json psyche-seek/package-lock.json ./
 RUN npm ci
 
-COPY daemon-ui/ ./
+COPY psyche-seek/ ./
 RUN npm run build
 
 # --- Stage 2: runtime ------------------------------------------------------
@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pynicotine/ ./pynicotine/
 COPY pseek ./pseek
-COPY --from=ui-build /ui/dist ./daemon-ui/dist
+COPY --from=ui-build /ui/dist ./psyche-seek/dist
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

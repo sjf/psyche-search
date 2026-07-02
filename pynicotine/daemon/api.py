@@ -497,7 +497,7 @@ class DaemonAPI:
             base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
         else:
             base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        return os.path.join(base, "daemon-ui", "dist")
+        return os.path.join(base, "psyche-seek", "dist")
 
     @staticmethod
     def _reveal_in_file_manager(path_value):
