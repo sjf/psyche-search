@@ -2062,6 +2062,13 @@ tbody tr:hover td:first-child {
   flex-direction: column;
 }
 
+.example-hint {
+  margin: 0;
+  padding: 12px 14px 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
 .recent-item {
   display: flex;
   align-items: center;

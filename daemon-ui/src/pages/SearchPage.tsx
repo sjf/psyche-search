@@ -128,6 +128,14 @@ function timeAgo(seconds: number) {
 
 const SORT_KEYS: SortKey[] = ["user", "speed", "folder", "file", "size", "attributes"];
 
+const EXAMPLE_SEARCHES = [
+  "Miles Davis Kind of Blue",
+  "Radiohead In Rainbows flac",
+  "Nina Simone Pastel Blues",
+  "Aphex Twin Selected Ambient Works",
+  "Khruangbin"
+];
+
 // Poll long enough to outlast the daemon's 3-minute search window (delay caps at 2s/poll).
 const MAX_POLL_ATTEMPTS = 100;
 
@@ -556,11 +564,11 @@ export default function SearchPage() {
     await Promise.all(candidates.map((file) => requestDownload(user, file.path || "", file.size)));
   };
 
-  const handleSearch = async () => {
+  const runSearch = async (value: string) => {
     if (!isConnected) {
       return;
     }
-    const trimmed = term.trim();
+    const trimmed = value.trim();
     if (!trimmed) {
       return;
     }
@@ -575,9 +583,12 @@ export default function SearchPage() {
     } catch {
       // Ignore, navigation still updates the UI.
     }
+    setTerm(trimmed);
     setActiveTerm(trimmed);
     navigate(`/search/${encodeURIComponent(trimmed)}${sortQueryFor(findSearch(searches, trimmed))}`);
   };
+
+  const handleSearch = () => runSearch(term);
 
   const recentSearches = useMemo(() => {
     const seen = new Set<string>();
@@ -838,7 +849,7 @@ export default function SearchPage() {
       ) : (
         <section className="section recent-searches">
           <div className="section-header">
-            <h2>Recent searches</h2>
+            <h2>{statusReady && recentSearches.length === 0 ? "Example searches" : "Recent searches"}</h2>
             {recentSearches.length > 0 ? (
               <button type="button" className="secondary-button" onClick={clearAllRecents}>
                 Clear all
@@ -846,7 +857,34 @@ export default function SearchPage() {
             ) : null}
           </div>
           {recentSearches.length === 0 ? (
-            <div className="empty-state">No recent searches yet. Search above to get started.</div>
+            statusReady && (
+              <>
+                <p className="example-hint">No recent searches yet. Try one of these to get started:</p>
+                <div className="recent-list">
+                  {EXAMPLE_SEARCHES.map((example) => (
+                    <div
+                      key={example}
+                      className="recent-item"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => runSearch(example)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          runSearch(example);
+                        }
+                      }}
+                    >
+                      <span className="recent-icon">
+                        <Search size={15} strokeWidth={1.7} />
+                      </span>
+                      <span className="recent-term">{example}</span>
+                      <span className="recent-count">example</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
           ) : (
             <div className="recent-list">
               {recentSearches.map((entry) => (
