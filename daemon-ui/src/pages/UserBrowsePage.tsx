@@ -176,6 +176,7 @@ export default function UserBrowsePage() {
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>({});
   const bodyRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
+  const initialScrollPending = useRef(true);
 
   useEffect(() => {
     let active = true;
@@ -251,14 +252,25 @@ export default function UserBrowsePage() {
     setExpandedState((prev) => ({ ...prev, ...ancestors }));
   }, [status, currentPath, tree]);
 
-  // Scroll the current folder so it sits just under the pinned bar.
+  // On a deep link (arriving with ?path=), scroll the target folder so it
+  // sits just under the pinned bar — once. Folder clicks within the page
+  // change the path too, but must not scroll.
   useEffect(() => {
-    if (status !== "ready" || !currentPath) {
+    initialScrollPending.current = true;
+  }, [username]);
+
+  useEffect(() => {
+    if (status !== "ready" || !initialScrollPending.current) {
+      return;
+    }
+    if (!currentPath) {
+      initialScrollPending.current = false;
       return;
     }
     const el = bodyRef.current?.querySelector(".tree-row-selected");
     if (el) {
       el.scrollIntoView({ block: "start" });
+      initialScrollPending.current = false;
     }
   }, [status, currentPath, expandedState, tree]);
 
