@@ -45,13 +45,23 @@ Use `./dev-test.sh` — it automates everything in this section and the next:
 
 ```bash
 ./dev-test.sh start            # online daemon: claims a .creds account so the web login works
-./dev-test.sh start --offline  # wrong creds, no account claimed — web login impossible, API testing only
+./dev-test.sh start --offline  # no Soulseek connection — for testing the web app itself, not the network
 ./dev-test.sh start --dir DIR  # keep config/data/dev.log in DIR instead of mktemp
 ./dev-test.sh stop DIR         # kill both listeners, release any .creds claim
 ```
 
-Use `--offline` for daemons only you will talk to (mint a session cookie for
-authed API calls); when the human needs to log in, use the online default.
+Pick the mode by who talks to the daemon:
+
+- **Human logs in → online (the default).** The web login performs a real
+  Soulseek login, so it only succeeds on an online daemon with a claimed
+  account. Always use this when handing the human a URL.
+- **Only you talk to it → `--offline`.** The full FastAPI app and Vite run
+  without the network: frontend work, auth middleware, config/transfers
+  endpoints, browse pages from a seeded cache. Search, live browse, and
+  downloads won't work, and neither will the login page — mint a session
+  cookie from `web_session_secret` for authed API calls. The seeded creds
+  are deliberately wrong so the daemon cannot accidentally go online; no
+  `.creds` account is consumed.
 
 `start` probes free ports, seeds a per-daemon config (copying the human's
 `[transfers]` paths), launches dev.sh detached, waits for health, and prints
