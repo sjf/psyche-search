@@ -244,8 +244,8 @@ export default function SearchPage() {
       };
     }
 
-    const cached = cacheRef.current.get(activeTerm);
-    const hasCached = Boolean(cached && cached.length > 0);
+    const cached = cacheRef.current.get(activeTerm) ?? [];
+    const hasCached = cached.length > 0;
     if (hasCached) {
       setRows(cached);
       setStatus("");

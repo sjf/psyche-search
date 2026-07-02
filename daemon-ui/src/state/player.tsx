@@ -35,7 +35,7 @@ interface PlayerState {
   enqueue: (track: Track) => void;
   skipNext: () => void;
   skipPrevious: () => void;
-  audioRef: React.RefObject<HTMLAudioElement>;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
 const PlayerContext = createContext<PlayerState | null>(null);
