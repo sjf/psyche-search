@@ -19,13 +19,20 @@
 
 ### Web UI dev servers (alternate ports)
 
-The web UI runs two processes: the daemon and the Vite dev server. Per the note
-above, start both on alternate ports (and check they're free first, e.g.
-`lsof -nP -iTCP:<port> -sTCP:LISTEN`):
+Use `./dev.sh` — it starts the daemon and the Vite dev server together (with
+Vite's `/api` + `/auth` proxy pointed at the daemon), refuses to start if
+either port is taken, and takes the daemon down when it exits. Per the note
+above, override both ports, and launch it detached — session teardown SIGTERMs
+tracked children, and dev.sh's exit trap would take the daemon down with it:
 
-- Daemon: `WEB_PORT=<port> .venv/bin/python pseek -d`
-- Vite: `VITE_DAEMON_PORT=<daemon-port> npm run dev -- --port <port> --strictPort`
-  (`VITE_DAEMON_PORT` points Vite's `/api` + `/auth` proxy at your daemon port).
+```bash
+export WEB_PORT=<port> VITE_PORT=<port>
+nohup ./dev.sh > /tmp/dev-$WEB_PORT.log 2>&1 < /dev/null &
+```
+
+Extra arguments are passed through to `pseek -d` (e.g. `-c <config> -u <datadir>`
+for a test daemon's own config). To stop it, kill both listeners by port:
+`kill $(lsof -t -iTCP:$VITE_PORT -sTCP:LISTEN) $(lsof -t -iTCP:$WEB_PORT -sTCP:LISTEN)`.
 
 ### Test daemons (multiple can coexist)
 
@@ -49,16 +56,12 @@ copy of each, and any number of test daemons can run side by side:
    start without them). Most test daemons don't need to be online: seed
    deliberately wrong credentials (any taken username + wrong password) — the
    startup login fails harmlessly and the daemon idles offline while the web
-   UI and API still work. When a daemon genuinely needs to be online, use one
-   of the designated test accounts in `.creds` at the repo root (untracked and
-   gitignored; ask the human if it's missing). Each non-comment line is one
-   account: `username/password/FE port`, where the FE (front-end) port is that
-   account's designated web port — always run that account's daemon on its FE
-   port, so every session knows which port maps to which account and two
-   sessions don't grab the same account behind different ports. Only one
-   daemon can be online per account at a time — the server allows one session
-   per account, and a second login kicks the first offline. Do NOT register
-   new Soulseek accounts (logging in with an unused username silently creates
+   UI and API still work. When a daemon genuinely needs to be online, claim
+   one of the test accounts in `.creds` (see "Claiming a `.creds` account"
+   below). Only one daemon can be online per account at a time — the server
+   allows one session per account, and a second login kicks the first offline.
+   Do NOT register new Soulseek accounts (logging in with an unused username
+   silently creates
    one) — and never use the human's real account in a test daemon.
 
 Unlike those three, the **transfer directories are shared**: every daemon uses
@@ -68,6 +71,39 @@ in one place no matter which daemon fetched them. Copy the `[transfers]` paths
 `~/.config/psycheseek/config` into each seeded config — only the config file
 and data/cache folder stay per-daemon.
 
+### Claiming a `.creds` account
+
+`.creds` lives at the root of the MAIN checkout (untracked and gitignored; ask
+the human if it's missing). Worktree sessions must use the main checkout's copy
+(`git worktree list` — first entry), so every session coordinates through the
+same file. Each non-comment line is one account:
+
+- `username/password` — free
+- `username/password/port` — in use by the daemon on that web port
+
+Read or edit the file only while holding its lock, so concurrent sessions
+don't trample each other's claims — and hold it just long enough for the edit:
+
+```bash
+MAIN=$(git worktree list | head -1 | awk '{print $1}')
+until mkdir "$MAIN/.creds.lock" 2>/dev/null; do sleep 0.5; done
+# ... read/edit $MAIN/.creds ...
+rmdir "$MAIN/.creds.lock"
+```
+
+If the lock is more than a minute old (check `stat`), its owner crashed while
+holding it — remove it and take it yourself.
+
+- **Claim**: pick a line with no port and append `/<web port>` (the port you
+  are about to start the daemon on).
+- **No free lines?** Probe each claimed port with
+  `lsof -nP -iTCP:<port> -sTCP:LISTEN`. A claimed port with no listener is
+  stale — that session died without releasing — so replace its port with
+  yours. If every port has a live listener, all accounts are genuinely busy;
+  ask the human rather than kicking someone's daemon offline.
+- **Release**: when you shut the daemon down (and in any end-of-session
+  cleanup), strip your port from the line, leaving `username/password`.
+
 Launch recipe:
 
 ```bash
@@ -76,12 +112,14 @@ free_port() { local p=$1; while lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null; do 
 DIR=$(mktemp -d)                                  # or a session-scratchpad subdir
 SLSK_PORT=$(free_port $((2300 + RANDOM % 90)))    # random base to avoid cross-session collisions
 
-# Offline daemon (the default): wrong creds, any free web port.
 WEB_PORT=$(free_port $((7040 + RANDOM % 50)))
+VITE_PORT=$(free_port $((5180 + RANDOM % 40)))
+
+# Offline daemon (the default): wrong creds.
 SLSK_USER=john SLSK_PASS=wrong-password
 
-# Online daemon: take an account line from .creds and use ITS designated FE port.
-# IFS=/ read -r SLSK_USER SLSK_PASS WEB_PORT < <(grep -v '^#' .creds | sed -n '1p')
+# Online daemon: claim a free account in $MAIN/.creds with $WEB_PORT (see
+# "Claiming a .creds account" above) and use its username/password here.
 
 cat > "$DIR/config" <<EOF
 [server]
@@ -93,8 +131,8 @@ portrange = ($SLSK_PORT, $SLSK_PORT)
 $(grep -E '^(downloaddir|incompletedir|uploaddir|shared) =' ~/.config/psycheseek/config)
 EOF
 
-WEB_PORT=$WEB_PORT WEB_HOST=127.0.0.1 nohup .venv/bin/python pseek -d \
-  -c "$DIR/config" -u "$DIR/data" > "$DIR/daemon.log" 2>&1 < /dev/null &
+WEB_PORT=$WEB_PORT VITE_PORT=$VITE_PORT WEB_HOST=127.0.0.1 nohup ./dev.sh \
+  -c "$DIR/config" -u "$DIR/data" > "$DIR/dev.log" 2>&1 < /dev/null &
 
 until curl -sf "http://127.0.0.1:$WEB_PORT/auth/me" >/dev/null; do sleep 1; done
 ```
@@ -108,7 +146,9 @@ To shut down your own daemon, resolve its PID from the web port —
 `$!`: pseek forks, so the shell's child PID is not the daemon, and killing it
 leaves the real process holding both ports (and rewriting the config on its
 eventual exit, clobbering any reseeding you did in between). Never
-`pkill -f pseek` — that kills other sessions' daemons and the human's.
+`pkill -f pseek` — that kills other sessions' daemons and the human's. Kill
+the Vite server by its port the same way, and if the daemon was on a `.creds`
+account, release the claim (strip your port from its line, under the lock).
 
 ## Coding Style & Naming Conventions
 
