@@ -545,18 +545,22 @@ button:disabled {
 .icon-button svg {
   pointer-events: none;
 }
-.icon-button[data-tooltip] {
+.icon-button[data-tooltip],
+.user-status-dot[data-tooltip] {
   position: relative;
 }
 .icon-button[data-tooltip]::before,
-.icon-button[data-tooltip]::after {
+.icon-button[data-tooltip]::after,
+.user-status-dot[data-tooltip]::before,
+.user-status-dot[data-tooltip]::after {
   opacity: 0;
   pointer-events: none;
   position: absolute;
   transition: opacity 0.12s ease, transform 0.12s ease;
   z-index: 30;
 }
-.icon-button[data-tooltip]::before {
+.icon-button[data-tooltip]::before,
+.user-status-dot[data-tooltip]::before {
   content: "";
   border: 6px solid transparent;
   border-top-color: rgba(19, 18, 32, 0.96);
@@ -564,7 +568,8 @@ button:disabled {
   left: 50%;
   transform: translate(-50%, 4px);
 }
-.icon-button[data-tooltip]::after {
+.icon-button[data-tooltip]::after,
+.user-status-dot[data-tooltip]::after {
   content: attr(data-tooltip);
   background: rgba(19, 18, 32, 0.96);
   border: 1px solid var(--border-2);
@@ -587,7 +592,9 @@ button:disabled {
 .icon-button[data-tooltip]:hover::before,
 .icon-button[data-tooltip]:hover::after,
 .icon-button[data-tooltip]:focus-visible::before,
-.icon-button[data-tooltip]:focus-visible::after {
+.icon-button[data-tooltip]:focus-visible::after,
+.user-status-dot[data-tooltip]:hover::before,
+.user-status-dot[data-tooltip]:hover::after {
   opacity: 1;
   transform: translate(-50%, 0);
 }
@@ -989,6 +996,26 @@ tr:last-child td {
   align-items: center;
   gap: 7px;
   color: var(--text);
+}
+
+.results-file-download {
+  padding: 0 0 0 18px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+.results-file-download:hover,
+.results-file-download:focus-visible {
+  color: var(--cyan);
+  filter: none;
+  transform: none;
+  box-shadow: none;
 }
 
 .results-group td.mono,
@@ -2209,16 +2236,11 @@ tbody tr:hover td:first-child {
   color: var(--text-dim);
 }
 
-.example-search-list .recent-item {
-  padding-left: 0;
-  padding-right: 0;
-}
-
 .recent-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 14px;
+  padding: 11px 0;
   border-bottom: 0.5px solid var(--border);
   cursor: pointer;
   color: var(--text-muted);
@@ -2259,14 +2281,12 @@ tbody tr:hover td:first-child {
 .recent-count {
   font-size: 12px;
   color: var(--text-muted);
-  font-family: var(--font-mono);
   white-space: nowrap;
 }
 
 .recent-time {
   font-size: 12px;
   color: var(--text-dim);
-  font-family: var(--font-mono);
   min-width: 30px;
   text-align: right;
 }
@@ -2283,5 +2303,5 @@ tbody tr:hover td:first-child {
 }
 
 .recent-remove:hover {
-  color: var(--danger);
+  color: var(--cyan);
 }

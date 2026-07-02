@@ -227,6 +227,7 @@ export default function UserBrowsePage() {
   const bodyRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
   const initialScrollPending = useRef(true);
+  const topbarScrollPending = useRef(false);
   const currentPathRef = useRef(currentPath);
   currentPathRef.current = currentPath;
   const spineRequestRef = useRef<string | null>(null);
@@ -316,25 +317,25 @@ export default function UserBrowsePage() {
     setExpandedState((prev) => ({ ...prev, ...ancestors }));
   }, [status, currentPath, tree]);
 
-  // On a deep link (arriving with ?path=), scroll the target folder so it
-  // sits just under the pinned bar — once. Folder clicks within the page
-  // change the path too, but must not scroll.
+  // Deep links and top-bar breadcrumb clicks scroll the target folder; tree clicks do not.
   useEffect(() => {
     initialScrollPending.current = true;
   }, [username]);
 
   useEffect(() => {
-    if (status !== "ready" || !initialScrollPending.current) {
+    if (status !== "ready" || (!initialScrollPending.current && !topbarScrollPending.current)) {
       return;
     }
     if (!currentPath) {
       initialScrollPending.current = false;
+      topbarScrollPending.current = false;
       return;
     }
     const el = bodyRef.current?.querySelector(".tree-row-selected");
     if (el) {
       el.scrollIntoView({ block: "start" });
       initialScrollPending.current = false;
+      topbarScrollPending.current = false;
     }
   }, [status, currentPath, expandedState, tree]);
 
@@ -422,6 +423,29 @@ export default function UserBrowsePage() {
       setSearchParams(path ? { path } : {});
     },
     [setSearchParams]
+  );
+
+  const navigateToFolderFromTopbar = useCallback(
+    (path: string) => {
+      if (!path) {
+        navigateToFolder("");
+        window.scrollTo(0, 0);
+        return;
+      }
+      topbarScrollPending.current = true;
+      navigateToFolder(path);
+      if (path !== currentPath) {
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        const el = bodyRef.current?.querySelector(".tree-row-selected");
+        if (topbarScrollPending.current && el) {
+          el.scrollIntoView({ block: "start" });
+          topbarScrollPending.current = false;
+        }
+      });
+    },
+    [currentPath, navigateToFolder]
   );
 
   const handleToggle = useCallback(
@@ -580,10 +604,7 @@ export default function UserBrowsePage() {
             type="button"
             className="link-button browse-crumb-user"
             onClick={() => {
-              if (currentPath) {
-                navigateToFolder("");
-              }
-              window.scrollTo(0, 0);
+              navigateToFolderFromTopbar("");
             }}
           >
             {username}
@@ -591,7 +612,7 @@ export default function UserBrowsePage() {
           {crumbs.map((crumb) => (
             <span key={crumb.path} className="browse-crumb">
               <ChevronRight size={14} strokeWidth={1.6} className="crumb-chevron" />
-              <button type="button" className="link-button" onClick={() => navigateToFolder(crumb.path)}>
+              <button type="button" className="link-button" onClick={() => navigateToFolderFromTopbar(crumb.path)}>
                 {crumb.label}
               </button>
             </span>

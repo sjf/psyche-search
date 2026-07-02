@@ -767,7 +767,9 @@ export default function SearchPage() {
                             className={`user-status-dot ${
                               (group.freeSlots || 0) > 0 ? "user-status-ready" : "user-status-busy"
                             }`}
-                            title={(group.freeSlots || 0) > 0 ? "Ready to download" : "Busy (no free slots)"}
+                            role="img"
+                            aria-label={(group.freeSlots || 0) > 0 ? "Ready to download" : "Busy (no free slots)"}
+                            data-tooltip={(group.freeSlots || 0) > 0 ? "Ready to download" : "Busy (no free slots)"}
                           />
                           <UserAvatar user={group.user} />
                           <button
@@ -817,10 +819,18 @@ export default function SearchPage() {
                         <td />
                         <td className="col-speed" />
                         <td className="mono">
-                          <span className="results-file-name">
+                          <button
+                            type="button"
+                            className="results-file-name results-file-download"
+                            title="Download file"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              requestDownload(file.user, file.path || "", file.size);
+                            }}
+                          >
                             <span className="results-icon">{getFileIcon(file.file)}</span>
                             {file.file}
-                          </span>
+                          </button>
                         </td>
                         <td className="col-size">{formatSize(file.size)}</td>
                         <td>
