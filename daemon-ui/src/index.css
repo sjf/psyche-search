@@ -1235,6 +1235,13 @@ tbody tr:hover td:first-child {
   padding-left: 12px;
 }
 
+.tree-row-loading,
+.tree-row-loading:hover {
+  color: var(--text-dim);
+  background: none;
+  cursor: default;
+}
+
 .tree-children {
   position: relative;
   margin-left: 19px;

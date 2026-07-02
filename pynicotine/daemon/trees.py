@@ -92,6 +92,81 @@ def build_user_tree(username, hide_at_root=False):
     return _build_tree_from_folder_map(folder_map)
 
 
+def count_nodes(root):
+    total = 0
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        total += 1
+        children = node.get("children")
+        if children:
+            stack.extend(children)
+    return total
+
+
+def find_node(root, path):
+    if not path:
+        return root
+    current = root
+    accum = ""
+    for part in path.split("\\"):
+        if not part:
+            continue
+        accum = part if not accum else f"{accum}\\{part}"
+        current = next(
+            (child for child in current.get("children") or []
+             if child.get("type") == "dir" and child.get("id") == accum),
+            None
+        )
+        if current is None:
+            return None
+    return current
+
+
+def _dir_stub(node):
+    stub = {key: node[key] for key in ("id", "name", "type", "path") if key in node}
+    stub["has_children"] = bool(node.get("children"))
+    return stub
+
+
+def _one_level(node):
+    copy = {key: value for key, value in node.items() if key != "children"}
+    children = node.get("children")
+    if children is not None:
+        copy["children"] = [_dir_stub(child) if child.get("type") == "dir" else child for child in children]
+    return copy
+
+
+def prune_tree_to_path(root, path):
+    """Copy of the tree keeping only the spine down to `path`: each ancestor's
+    children one level deep, with off-spine directories reduced to childless
+    stubs (`has_children` marks whether they can be expanded)."""
+    pruned_root = _one_level(root)
+    current_src = root
+    current_dst = pruned_root
+    accum = ""
+    for part in (path or "").split("\\"):
+        if not part:
+            continue
+        accum = part if not accum else f"{accum}\\{part}"
+        next_src = next(
+            (child for child in current_src.get("children") or []
+             if child.get("type") == "dir" and child.get("id") == accum),
+            None
+        )
+        if next_src is None:
+            break
+        expanded = _one_level(next_src)
+        children_dst = current_dst.get("children") or []
+        for index, child in enumerate(children_dst):
+            if child.get("id") == accum:
+                children_dst[index] = expanded
+                break
+        current_src = next_src
+        current_dst = expanded
+    return pruned_root
+
+
 def build_search_tree(results):
     if not results:
         return None

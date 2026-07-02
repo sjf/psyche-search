@@ -24,9 +24,13 @@ from pynicotine.utils import clean_file
 from pynicotine.utils import encode_path
 from pynicotine.daemon.trees import build_search_tree
 from pynicotine.daemon.trees import build_user_tree
+from pynicotine.daemon.trees import count_nodes
+from pynicotine.daemon.trees import find_node
+from pynicotine.daemon.trees import prune_tree_to_path
 
 
 USER_TREE_CACHE_TTL = 24 * 60 * 60  # keep a browsed user's listing for at least a day
+USER_TREE_MAX_FULL_NODES = 30000  # bigger listings are pruned per request; the browser can't take 100k+ nodes
 USER_BROWSE_TIMEOUT = 45  # give up on an unresponsive user after this many seconds
 USER_INFO_CACHE_TTL = 7 * 24 * 60 * 60  # keep profile pic + description for a week
 USER_INFO_TIMEOUT = 30  # give up on an unresponsive user's profile after this many seconds
@@ -402,13 +406,18 @@ class DaemonState:
 
         return search, results
 
-    def get_user_tree_state(self, username):
+    def get_user_tree_state(self, username, path="", full=False):
         """Current browse state for a user, without blocking.
 
         The frontend polls this quickly. A browse is kicked off on demand and its
         progress and resulting tree are reported as they become available. A built
         listing is cached (memory + disk) for at least a day, so repeat browses and
         prefetches return instantly.
+
+        Listings above USER_TREE_MAX_FULL_NODES are never returned whole: the
+        response is pruned to the spine of `path` and the frontend fetches deeper
+        levels on demand. `full` returns the complete subtree at `path` (still
+        subject to the node cap), for folder downloads.
         """
         if not username:
             return {"status": "error", "tree": None}
@@ -418,7 +427,7 @@ class DaemonState:
         with self._lock:
             cached = self._user_tree_cache.get(username)
             if cached and now - cached["cached_at"] < USER_TREE_CACHE_TTL:
-                return {"status": "ready", "tree": cached["tree"], "cached": True}
+                return self._tree_payload(cached, path, full)
 
             status = self._user_browse_status.get(username)
             if status == "loading":
@@ -439,9 +448,35 @@ class DaemonState:
         if disk_entry is not None:
             with self._lock:
                 self._user_tree_cache[username] = disk_entry
-            return {"status": "ready", "tree": disk_entry["tree"], "cached": True}
+            return self._tree_payload(disk_entry, path, full)
 
         return self.start_user_browse(username)
+
+    @staticmethod
+    def _tree_payload(entry, path, full):
+        tree = entry["tree"]
+        node_count = entry.get("node_count")
+        if node_count is None:
+            node_count = count_nodes(tree)
+            entry["node_count"] = node_count
+
+        if node_count <= USER_TREE_MAX_FULL_NODES:
+            if full:
+                node = find_node(tree, path)
+                if node is None:
+                    return {"status": "error", "tree": None}
+                return {"status": "ready", "tree": node, "cached": True}
+            return {"status": "ready", "tree": tree, "cached": True}
+
+        if full:
+            node = find_node(tree, path)
+            if node is None:
+                return {"status": "error", "tree": None}
+            if count_nodes(node) > USER_TREE_MAX_FULL_NODES:
+                return {"status": "too_large", "tree": None}
+            return {"status": "ready", "tree": node, "cached": True}
+
+        return {"status": "ready", "tree": prune_tree_to_path(tree, path), "cached": True, "truncated": True}
 
     def start_user_browse(self, username):
         """Begin a browse unless one is already running or cached. Safe to fire-and-forget (prefetch)."""
@@ -452,7 +487,7 @@ class DaemonState:
         with self._lock:
             cached = self._user_tree_cache.get(username)
             if cached and now - cached["cached_at"] < USER_TREE_CACHE_TTL:
-                return {"status": "ready", "tree": cached["tree"], "cached": True}
+                return self._tree_payload(cached, "", False)
 
             if self._user_browse_status.get(username) == "loading":
                 started = self._user_browse_started.get(username, now)

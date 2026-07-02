@@ -12,6 +12,13 @@ interface BrowseProgress {
 
 type BrowseStatus = "loading" | "ready" | "not_found" | "error";
 
+interface TreeResponse {
+  status: BrowseStatus | "too_large";
+  tree?: FileNode | null;
+  progress?: BrowseProgress | null;
+  truncated?: boolean;
+}
+
 function collectFiles(node: FileNode): FileNode[] {
   if (node.type === "file") {
     return [node];
@@ -160,6 +167,48 @@ function BrowseUserProfile({
   );
 }
 
+function hasUnloadedChildren(node: FileNode): boolean {
+  if (node.type === "dir" && node.children === undefined && node.has_children) {
+    return true;
+  }
+  return (node.children || []).some(hasUnloadedChildren);
+}
+
+// Fold freshly fetched nodes into what's already loaded: the server's listing
+// wins, except a stub never clobbers children we already have.
+function mergeChildren(existing: FileNode[] | undefined, incoming: FileNode[] | undefined): FileNode[] | undefined {
+  if (!incoming) {
+    return existing;
+  }
+  if (!existing) {
+    return incoming;
+  }
+  const byId = new Map(existing.map((node) => [node.id, node]));
+  return incoming.map((node) => {
+    const prev = byId.get(node.id);
+    if (!prev) {
+      return node;
+    }
+    const children = mergeChildren(prev.children, node.children);
+    return children === undefined ? { ...prev, ...node } : { ...prev, ...node, children };
+  });
+}
+
+function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
+  let found: FileNode | null = null;
+  let level: FileNode[] | undefined = nodes;
+  let accum = "";
+  for (const part of path.split("\\").filter(Boolean)) {
+    accum = accum ? `${accum}\\${part}` : part;
+    found = (level || []).find((node) => node.type === "dir" && node.id === accum) || null;
+    if (!found) {
+      return null;
+    }
+    level = found.children;
+  }
+  return found;
+}
+
 export default function UserBrowsePage() {
   const { username: usernameParam } = useParams();
   const username = usernameParam || "";
@@ -171,40 +220,55 @@ export default function UserBrowsePage() {
   const [status, setStatus] = useState<BrowseStatus>("loading");
   const [tree, setTree] = useState<FileNode[]>([]);
   const [progress, setProgress] = useState<BrowseProgress | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [infoKey, setInfoKey] = useState(0);
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>({});
   const bodyRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
   const initialScrollPending = useRef(true);
+  const currentPathRef = useRef(currentPath);
+  currentPathRef.current = currentPath;
+  const spineRequestRef = useRef<string | null>(null);
+
+  const fetchTree = useCallback(
+    async (path: string, full = false) => {
+      const params = new URLSearchParams();
+      if (path) {
+        params.set("path", path);
+      }
+      if (full) {
+        params.set("full", "1");
+      }
+      const query = params.toString();
+      const response = await fetch(`/api/user/${encodeURIComponent(username)}/tree.json${query ? `?${query}` : ""}`);
+      if (!response.ok) {
+        throw new Error("Tree request failed");
+      }
+      return (await response.json()) as TreeResponse;
+    },
+    [username]
+  );
 
   useEffect(() => {
     let active = true;
     let attempts = 0;
     setStatus("loading");
     setTree([]);
+    setTruncated(false);
     setProgress(null);
     setExpandedState({});
+    spineRequestRef.current = null;
 
     const load = async () => {
       try {
-        const response = await fetch(`/api/user/${encodeURIComponent(username)}/tree.json`);
-        if (!response.ok) {
-          if (active) {
-            setStatus("error");
-          }
-          return;
-        }
-        const data = (await response.json()) as {
-          status: BrowseStatus;
-          tree?: FileNode | null;
-          progress?: BrowseProgress | null;
-        };
+        const data = await fetchTree(currentPathRef.current);
         if (!active) {
           return;
         }
         if (data.status === "ready") {
           setTree(data.tree?.children || []);
+          setTruncated(!!data.truncated);
           setProgress(null);
           setStatus("ready");
           return;
@@ -219,7 +283,7 @@ export default function UserBrowsePage() {
           setStatus("error");
           return;
         }
-        setStatus(data.status);
+        setStatus(data.status === "not_found" ? "not_found" : "error");
       } catch {
         if (active) {
           setStatus("error");
@@ -235,7 +299,7 @@ export default function UserBrowsePage() {
         window.clearTimeout(pollRef.current);
       }
     };
-  }, [username, reloadKey]);
+  }, [username, reloadKey, fetchTree]);
 
   // Expand the current path (and its ancestors) so the target folder is visible.
   useEffect(() => {
@@ -318,6 +382,41 @@ export default function UserBrowsePage() {
 
   const retry = () => setReloadKey((key) => key + 1);
 
+  const loadFolder = useCallback(
+    async (path: string) => {
+      try {
+        const data = await fetchTree(path);
+        if (data.status === "ready" && data.tree) {
+          const children = data.tree.children || [];
+          setTree((prev) => mergeChildren(prev, children) || prev);
+          return true;
+        }
+      } catch {
+        // fall through to the toast
+      }
+      addToast("Could not load folder.", "error");
+      return false;
+    },
+    [addToast, fetchTree]
+  );
+
+  // In a pruned (lazy) listing the folder from the URL may not be loaded yet;
+  // fetch its spine once the top of the tree is in.
+  useEffect(() => {
+    if (status !== "ready" || !currentPath) {
+      return;
+    }
+    const node = findNodeByPath(tree, currentPath);
+    if (node && (node.children !== undefined || !node.has_children)) {
+      return;
+    }
+    if (spineRequestRef.current === currentPath) {
+      return;
+    }
+    spineRequestRef.current = currentPath;
+    loadFolder(currentPath);
+  }, [status, currentPath, tree, loadFolder]);
+
   const navigateToFolder = useCallback(
     (path: string) => {
       setSearchParams(path ? { path } : {});
@@ -325,12 +424,23 @@ export default function UserBrowsePage() {
     [setSearchParams]
   );
 
-  const handleToggle = useCallback((node: FileNode) => {
-    if (node.type !== "dir") {
-      return;
-    }
-    setExpandedState((prev) => ({ ...prev, [node.id]: !(prev[node.id] ?? false) }));
-  }, []);
+  const handleToggle = useCallback(
+    (node: FileNode) => {
+      if (node.type !== "dir") {
+        return;
+      }
+      const expanding = !(expandedState[node.id] ?? false);
+      setExpandedState((prev) => ({ ...prev, [node.id]: !(prev[node.id] ?? false) }));
+      if (expanding && node.children === undefined && node.has_children) {
+        loadFolder(String(node.path || node.id)).then((ok) => {
+          if (!ok) {
+            setExpandedState((prev) => ({ ...prev, [node.id]: false }));
+          }
+        });
+      }
+    },
+    [expandedState, loadFolder]
+  );
 
   const handleActivate = useCallback(
     (node: FileNode) => {
@@ -407,9 +517,27 @@ export default function UserBrowsePage() {
             className="icon-button icon-button-small icon-button-plain"
             aria-label="Download folder"
             title="Download folder"
-            onClick={(event) => {
+            onClick={async (event) => {
               event.stopPropagation();
-              const files = collectFiles(node);
+              let target = node;
+              if (hasUnloadedChildren(node)) {
+                try {
+                  const data = await fetchTree(String(node.path || node.id), true);
+                  if (data.status === "too_large") {
+                    addToast("Folder is too large to download at once.", "error");
+                    return;
+                  }
+                  if (data.status !== "ready" || !data.tree) {
+                    addToast("Download failed.", "error");
+                    return;
+                  }
+                  target = data.tree;
+                } catch {
+                  addToast("Download failed.", "error");
+                  return;
+                }
+              }
+              const files = collectFiles(target);
               if (!files.length) {
                 addToast("No files to download.", "error");
                 return;
@@ -423,10 +551,15 @@ export default function UserBrowsePage() {
       }
       return null;
     },
-    [addToast, download]
+    [addToast, download, fetchTree]
   );
 
-  const summary = useMemo(() => (status === "ready" && tree.length ? summarizeShares(tree) : null), [status, tree]);
+  // A pruned (truncated) listing only contains the loaded spine, so client-side
+  // share totals would be nonsense; skip the summary for those users.
+  const summary = useMemo(
+    () => (status === "ready" && tree.length && !truncated ? summarizeShares(tree) : null),
+    [status, tree, truncated]
+  );
 
   const crumbs = useMemo(() => {
     const parts = currentPath ? currentPath.split("\\").filter(Boolean) : [];

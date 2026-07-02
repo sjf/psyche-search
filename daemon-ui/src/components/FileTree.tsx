@@ -9,6 +9,7 @@ export interface FileNode {
   path?: string | null;
   user?: string;
   children?: FileNode[];
+  has_children?: boolean;
 }
 
 export const MUSIC_FILE_RE = /\.(mp3|flac|ogg|opus|wav|aac|m4a|wma|alac|aiff|ape)$/i;
@@ -118,6 +119,14 @@ export default function FileTree({
         {displaySize && <span className="tree-meta">{displaySize}</span>}
         {renderActions ? <span className="tree-actions">{renderActions(node)}</span> : null}
       </div>
+      {isDir && expanded && node.children === undefined && node.has_children ? (
+        <div className="tree-children">
+          <div className="tree-row tree-row-loading">
+            <span className="tree-caret-spacer" aria-hidden="true" />
+            <span className="tree-label">Loading…</span>
+          </div>
+        </div>
+      ) : null}
       {isDir && expanded && node.children?.length ? (
         <div className="tree-children">
           {node.children.map((child) => (
